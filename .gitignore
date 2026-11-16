@@ -1,0 +1,15 @@
+node_modules
+dist
+*.local
+*.tsbuildinfo
+.DS_Store
+
+# 規格書與原型只留在本機
+files/
+
+# 本機開發工具設定
+.claude/
+
+# Markdown 只公開 README.md
+*.md
+!/README.md

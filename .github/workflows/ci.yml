@@ -1,0 +1,29 @@
+# 每次推送與 PR：lint → 測試 → 建置 → 套件大小 → 平衡模擬
+# 部署由 Vercel 連接此 repo 後自動進行（見 vercel.json）
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: 檢查套件大小（gzip 後 < 200KB）
+        run: npm run size
+      - name: 平衡模擬（確認模擬器可執行）
+        run: npm run sim -- --runs 200 --seed 1
