@@ -43,6 +43,8 @@ export function cloneState(s: GameState): GameState {
     discard: s.discard.slice(),
     exhausted: s.exhausted.slice(),
     powers: { ...s.powers },
+    relics: s.relics.slice(),
+    relicFlags: { ...s.relicFlags },
     rewardOptions: s.rewardOptions.slice(),
   };
 }

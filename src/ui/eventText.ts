@@ -2,6 +2,7 @@
 
 import { CARDS } from '../data/cards.ts';
 import { CHARACTERS } from '../data/characters.ts';
+import { RELICS } from '../data/relics.ts';
 import type { CharacterId, GameEvent, GameState, Powers } from '../engine/types.ts';
 import { unitName } from './view.ts';
 
@@ -96,6 +97,8 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
       return { text: `「${CARDS[e.cardId].name}」加入牌組`, kind: 'normal' };
     case 'cardRemoved':
       return { text: `「${CARDS[e.cardId].name}」從牌組移除`, kind: 'normal' };
+    case 'relicTriggered':
+      return { text: `媒介物品「${RELICS[e.relicId].name}」生效`, kind: 'good' };
     case 'revived':
       return { text: `${name(e.allyId)}經由錨點重新凝聚（${e.hp} 生命）`, kind: 'good' };
     case 'runWon':

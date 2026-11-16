@@ -7,6 +7,7 @@ import { STARTER_DECK } from '../data/starterDeck.ts';
 import { startPlayerTurn } from './combat.ts';
 import { chooseIntent } from './enemyAI.ts';
 import { seedToState, shuffle } from './rng.ts';
+import { emptyRelicFlags } from './relics.ts';
 import { buildRoute } from './route.ts';
 import type { CardId, CardInstance, Ctx, GameState } from './types.ts';
 
@@ -38,6 +39,8 @@ export function createInitialState(): GameState {
     sleeveUsed: false,
     firstBetDone: false,
     powers: { noRetreat: false, lingeringPoison: false, loadedDice: false },
+    relics: [],
+    relicFlags: emptyRelicFlags(),
     rewardOptions: [],
   };
 }

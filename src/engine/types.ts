@@ -70,10 +70,41 @@ export type EncounterId =
   | 'train'
   | 'stationOffice';
 
+export type RelicId =
+  // 增幅
+  | 'resonanceCrystal'
+  | 'overloadCoil'
+  | 'warmAmp'
+  // 雷翁
+  | 'sacredOath'
+  | 'brokenCrest'
+  // 阿格妮絲
+  | 'charredPouch'
+  | 'pyreEmber'
+  // 艾斯
+  | 'cheatersWatch'
+  | 'chippedCard'
+  // 通用
+  | 'fadedTimetable'
+  | 'travelersFlask'
+  | 'meteorShard';
+
+/** 遺物的「每場／每回合第一次」紀錄 */
+export interface RelicFlags {
+  /** 共鳴水晶：本場已用掉 ×3（戰鬥開始重置） */
+  resonanceUsed: boolean;
+  /** 過載線圈：本回合已抽過（回合開始重置） */
+  coilUsed: boolean;
+  /** 斷裂的盾徽：本場已給過格擋（戰鬥開始重置） */
+  crestUsed: boolean;
+  /** 聖隊的誓約：本場已提示過（戰鬥開始重置） */
+  oathShown: boolean;
+}
+
 export type CardType = 'attack' | 'skill' | 'power';
 export type TargetKind = 'enemy' | 'ally' | 'none';
-/** 增幅倍率 */
-export type Multiplier = 1 | 2;
+/** 增幅倍率（共鳴水晶讓每場第一次增幅為 3） */
+export type Multiplier = 1 | 2 | 3;
 
 /** 牌組／牌堆中的一張實體牌 */
 export interface CardInstance {
@@ -198,6 +229,9 @@ export interface GameState {
   sleeveUsed: boolean;
   firstBetDone: boolean;
   powers: Powers;
+  /** 持有的媒介物品（取得順序） */
+  relics: RelicId[];
+  relicFlags: RelicFlags;
 
   rewardOptions: CardId[];
 }
@@ -263,6 +297,7 @@ export type GameEvent =
   | { type: 'cardAdded'; uid: number; cardId: CardId }
   | { type: 'cardRemoved'; uid: number; cardId: CardId }
   | { type: 'revived'; allyId: AllyId; hp: number }
+  | { type: 'relicTriggered'; relicId: RelicId }
   | { type: 'runWon' }
   | { type: 'runLost'; battleIndex: number }
   | { type: 'actionRejected'; action: Action['type']; reason: RejectReason };
