@@ -4,7 +4,7 @@
 
 React + TypeScript + Vite 製作，是一份前端作品集：重點在**遊戲邏輯與 UI 分離、可重現的隨機、型別安全的資料驅動設計、自動化測試與平衡模擬**。
 
-**線上試玩**：（部署後填入 Vercel 網址）
+**線上試玩**：https://ember-station.vercel.app/
 
 ![遊玩畫面：出牌、浮動數字、敵人依序反擊](docs/gameplay.gif)
 
