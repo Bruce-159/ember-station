@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { reduce } from '../src/engine/reducer.ts';
 import type { Action, GameState, ReduceResult } from '../src/engine/types.ts';
-import { autoplayRun, battleState, newRun } from './helpers.ts';
+import { autoplayRun, battleState, freshRun, newRun } from './helpers.ts';
 
 function checkInvariants(r: ReduceResult) {
   const frames = r.frames;
@@ -75,7 +75,7 @@ describe('影格', () => {
 
   it('整輪的每個動作都滿足影格不變式', () => {
     const { actions } = autoplayRun(55);
-    let s = newRun(55);
+    let s = freshRun(55);
     for (const a of actions.slice(1) as Action[]) {
       const r = reduce(s, a, { frames: true });
       checkInvariants(r);

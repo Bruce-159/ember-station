@@ -15,7 +15,7 @@ import {
 } from './combat.ts';
 import { runEnemyAction } from './enemyAI.ts';
 import { ampMultiplier, overloadCoilDraw, spendResonance } from './relics.ts';
-import { loseRun, pickReward, removeCardAndContinue, startRun, winBattle } from './run.ts';
+import { loseRun, pickRelic, pickReward, removeCardAndContinue, startRun, winBattle } from './run.ts';
 import type {
   Action,
   AllyId,
@@ -47,6 +47,7 @@ export function cloneState(s: GameState): GameState {
     powers: { ...s.powers },
     relics: s.relics.slice(),
     relicFlags: { ...s.relicFlags },
+    relicOptions: s.relicOptions.slice(),
     rewardOptions: s.rewardOptions.slice(),
   };
 }
@@ -117,6 +118,13 @@ export function reduce(state: GameState, action: Action, opts: ReduceOptions = {
       }
       const ctx = begin();
       removeCardAndContinue(ctx, action.uid);
+      return finish(ctx);
+    }
+    case 'PICK_RELIC': {
+      if (state.phase !== 'relicChoice') return reject(state, action, 'phase');
+      if (!state.relicOptions.includes(action.relicId)) return reject(state, action, 'invalidChoice');
+      const ctx = begin();
+      pickRelic(ctx, action.relicId);
       return finish(ctx);
     }
   }

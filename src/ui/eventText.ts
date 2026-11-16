@@ -99,6 +99,8 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
       return { text: `「${CARDS[e.cardId].name}」從牌組移除`, kind: 'normal' };
     case 'relicTriggered':
       return { text: `媒介物品「${RELICS[e.relicId].name}」生效`, kind: 'good' };
+    case 'relicGained':
+      return { text: `獲得媒介物品「${RELICS[e.relicId].name}」`, kind: 'good' };
     case 'revived':
       return { text: `${name(e.allyId)}經由錨點重新凝聚（${e.hp} 生命）`, kind: 'good' };
     case 'runWon':
@@ -106,6 +108,7 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
     case 'runLost':
       return { text: `隊伍全滅，止步於第 ${e.battleIndex + 1} 戰`, kind: 'heading' };
     case 'routeBuilt':
+    case 'relicOffered':
     case 'enemyTurn':
     case 'draw':
     case 'discardHand':

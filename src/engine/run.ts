@@ -3,15 +3,17 @@
 import { ALLY_ORDER, allyMaxHp } from '../data/characters.ts';
 import { REWARD_POOL } from '../data/cards.ts';
 import { ENCOUNTERS, ROUTE_LENGTH } from '../data/encounters.ts';
+import { ALL_RELIC_IDS } from '../data/relics.ts';
 import { STARTER_DECK } from '../data/starterDeck.ts';
 import { startPlayerTurn } from './combat.ts';
 import { chooseIntent } from './enemyAI.ts';
 import { seedToState, shuffle } from './rng.ts';
 import { emptyRelicFlags, onBattleStart, relicTriggered, restHealPercent } from './relics.ts';
-import { buildRoute } from './route.ts';
-import type { CardId, CardInstance, Ctx, GameState } from './types.ts';
+import { buildRoute, encounterAt } from './route.ts';
+import type { CardId, CardInstance, Ctx, GameState, RelicId } from './types.ts';
 
 export const REWARD_CHOICES = 3;
+export const RELIC_CHOICES = 3;
 export const REVIVE_PERCENT = 30;
 export const REST_HEAL_PERCENT = 25;
 
@@ -41,6 +43,8 @@ export function createInitialState(): GameState {
     powers: { noRetreat: false, lingeringPoison: false, loadedDice: false },
     relics: [],
     relicFlags: emptyRelicFlags(),
+    relicOptions: [],
+    afterRelic: null,
     rewardOptions: [],
   };
 }
@@ -66,7 +70,7 @@ export function startRun(ctx: Ctx, seed: number): void {
   ctx.events.push({ type: 'runStarted', seed });
   state.route = buildRoute(state);
   ctx.events.push({ type: 'routeBuilt', route: [...state.route] });
-  startBattle(ctx, 0);
+  offerRelics(ctx, 'battle');
 }
 
 /** 戰鬥開始：洗牌、清空牌堆、重置能力／手氣／增幅／出千，決定意圖後進入第一個玩家回合 */
@@ -124,9 +128,48 @@ export function winBattle(ctx: Ctx): void {
     ctx.events.push({ type: 'runWon' });
     return;
   }
+  if (encounterAt(state)?.elite) offerRelics(ctx, 'reward');
+  else offerCardReward(ctx);
+}
+
+function offerCardReward(ctx: Ctx): void {
+  const { state } = ctx;
   state.phase = 'reward';
   state.rewardOptions = shuffle(state, REWARD_POOL).slice(0, REWARD_CHOICES);
   ctx.events.push({ type: 'rewardOffered', cardIds: [...state.rewardOptions] });
+}
+
+/** 媒介物品 3 選 1（不含已持有）；沒有可選的就直接進行下一步 */
+export function offerRelics(ctx: Ctx, next: 'battle' | 'reward'): void {
+  const { state } = ctx;
+  const options = shuffle(
+    state,
+    ALL_RELIC_IDS.filter((id) => !state.relics.includes(id)),
+  ).slice(0, RELIC_CHOICES);
+  if (options.length === 0) {
+    continueAfterRelic(ctx, next);
+    return;
+  }
+  state.phase = 'relicChoice';
+  state.relicOptions = options;
+  state.afterRelic = next;
+  ctx.events.push({ type: 'relicOffered', relicIds: [...options] });
+}
+
+/** 選一個遺物（合法性由 reducer 檢查） */
+export function pickRelic(ctx: Ctx, relicId: RelicId): void {
+  const { state } = ctx;
+  const next = state.afterRelic ?? 'battle';
+  state.relics.push(relicId);
+  ctx.events.push({ type: 'relicGained', relicId });
+  state.relicOptions = [];
+  state.afterRelic = null;
+  continueAfterRelic(ctx, next);
+}
+
+function continueAfterRelic(ctx: Ctx, next: 'battle' | 'reward'): void {
+  if (next === 'battle') startBattle(ctx, ctx.state.battleIndex);
+  else offerCardReward(ctx);
 }
 
 export function loseRun(ctx: Ctx): void {

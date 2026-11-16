@@ -10,6 +10,8 @@
 // 規則 4 是補充：規格只寫到攻擊，若照字面，毒草、增幅、袖裡藏牌、血誓與所有能力牌都永遠不會被打出，
 // 模擬出的勝率會嚴重低估。規則 4 只在攻擊打完、還有能量時才出這些牌，仍然是「簡單的貪婪」。
 //
+// 選遺物：一律選第一個（與選牌相同，等同隨機拿遺物）。
+//
 // 「能不能擊殺」「有沒有效果」都用 reduce 在副本上試打來判斷（reduce 是純函式，不影響真正的狀態）。
 // 下注結果取決於亂數，試打會等於偷看未來，所以未保證成功的下注牌不參與擊殺判斷。
 
@@ -41,6 +43,10 @@ export function createGreedyBot(): GreedyBot {
 
   return {
     decide(state) {
+      if (state.phase === 'relicChoice') {
+        const relicId = state.relicOptions[0];
+        if (relicId) return { type: 'PICK_RELIC', relicId };
+      }
       if (state.phase === 'reward') return { type: 'PICK_REWARD', cardId: state.rewardOptions[0] ?? null };
       if (state.phase === 'remove') return { type: 'REMOVE_CARD', uid: pickRemoval(state) };
       if (state.phase !== 'battle') return { type: 'NEW_RUN', seed: state.seed };

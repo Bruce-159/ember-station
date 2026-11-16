@@ -192,7 +192,7 @@ export interface Enemy {
 
 // ───────────── 遊戲狀態 ─────────────
 
-export type Phase = 'title' | 'battle' | 'reward' | 'remove' | 'victory' | 'defeat';
+export type Phase = 'title' | 'relicChoice' | 'battle' | 'reward' | 'remove' | 'victory' | 'defeat';
 
 export interface Powers {
   noRetreat: boolean;
@@ -232,6 +232,10 @@ export interface GameState {
   /** 持有的媒介物品（取得順序） */
   relics: RelicId[];
   relicFlags: RelicFlags;
+  /** 選遺物階段的選項 */
+  relicOptions: RelicId[];
+  /** 選完遺物要去哪裡：開局 → 'battle'；精英勝利 → 'reward'；不在選遺物階段為 null */
+  afterRelic: 'battle' | 'reward' | null;
 
   rewardOptions: CardId[];
 }
@@ -243,7 +247,8 @@ export type Action =
   | { type: 'PLAY_CARD'; uid: number; targetId?: string }
   | { type: 'END_TURN' }
   | { type: 'PICK_REWARD'; cardId: CardId | null }
-  | { type: 'REMOVE_CARD'; uid: number | null };
+  | { type: 'REMOVE_CARD'; uid: number | null }
+  | { type: 'PICK_RELIC'; relicId: RelicId };
 
 // ───────────── 事件 ─────────────
 
@@ -298,6 +303,8 @@ export type GameEvent =
   | { type: 'cardRemoved'; uid: number; cardId: CardId }
   | { type: 'revived'; allyId: AllyId; hp: number }
   | { type: 'relicTriggered'; relicId: RelicId }
+  | { type: 'relicOffered'; relicIds: RelicId[] }
+  | { type: 'relicGained'; relicId: RelicId }
   | { type: 'runWon' }
   | { type: 'runLost'; battleIndex: number }
   | { type: 'actionRejected'; action: Action['type']; reason: RejectReason };

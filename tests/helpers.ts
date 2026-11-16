@@ -3,7 +3,7 @@
 import { CARDS } from '../src/data/cards.ts';
 import { canPlayCard, cloneState, reduce, validTargets } from '../src/engine/reducer.ts';
 import { mulberry32 } from '../src/engine/rng.ts';
-import { createInitialState } from '../src/engine/run.ts';
+import { createInitialState, startBattle } from '../src/engine/run.ts';
 import type {
   Action,
   AllyId,
@@ -14,10 +14,25 @@ import type {
   Intent,
   IntentPattern,
   ReduceResult,
+  RelicId,
 } from '../src/engine/types.ts';
 
-export function newRun(seed = 1): GameState {
+/** 剛開局、停在選媒介物品的狀態 */
+export function freshRun(seed = 1): GameState {
   return reduce(createInitialState(), { type: 'NEW_RUN', seed }).state;
+}
+
+/**
+ * 新的一輪，跳過開局的媒介物品選擇，直接進入第 1 場。
+ * relics 指定持有的遺物（預設沒有），讓既有測試不受遺物影響。
+ */
+export function newRun(seed = 1, relics: RelicId[] = []): GameState {
+  const s = cloneState(freshRun(seed));
+  s.relics = [...relics];
+  s.relicOptions = [];
+  s.afterRelic = null;
+  startBattle({ state: s, events: [] }, 0);
+  return s;
 }
 
 export interface EnemySpec {
@@ -167,6 +182,10 @@ export function autoplayRun(seed: number, maxSteps = 20_000): { state: GameState
   step({ type: 'NEW_RUN', seed });
   for (let i = 0; i < maxSteps; i++) {
     if (s.phase === 'victory' || s.phase === 'defeat') return { state: s, actions };
+    if (s.phase === 'relicChoice') {
+      step({ type: 'PICK_RELIC', relicId: s.relicOptions[0]! });
+      continue;
+    }
     if (s.phase === 'reward') {
       step({ type: 'PICK_REWARD', cardId: s.rewardOptions[0] ?? null });
       continue;

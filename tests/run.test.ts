@@ -3,9 +3,10 @@
 import { describe, expect, it } from 'vitest';
 import { REWARD_POOL } from '../src/data/cards.ts';
 import { ENCOUNTERS, ROUTE_LENGTH } from '../src/data/encounters.ts';
+import { ALL_RELIC_IDS } from '../src/data/relics.ts';
 import { cloneState, reduce } from '../src/engine/reducer.ts';
-import { createInitialState } from '../src/engine/run.ts';
-import type { Action, CardId, GameState } from '../src/engine/types.ts';
+import { createInitialState, startBattle } from '../src/engine/run.ts';
+import type { Action, CardId, GameState, RelicId } from '../src/engine/types.ts';
 import { autoplayRun, battleState, deepFreeze, newRun, ofType, play } from './helpers.ts';
 
 /** 作弊：把目前戰鬥的敵人都打到 1 血，再用槍林彈雨清場 */
@@ -22,7 +23,7 @@ function winCurrentBattle(state: GameState): GameState {
 }
 
 describe('新的一輪', () => {
-  it('設定種子、建立 17 張起始牌組、同伴滿血、進入第 1 場', () => {
+  it('設定種子、建立 17 張起始牌組、同伴滿血、排好路線，先選媒介物品', () => {
     const r = reduce(createInitialState(), { type: 'NEW_RUN', seed: 42 });
     const s = r.state;
     expect(s.seed).toBe(42);
@@ -33,12 +34,22 @@ describe('新的一輪', () => {
       ['agnes', 36, 36],
       ['ace', 40, 40],
     ]);
-    expect(s.phase).toBe('battle');
-    const first = ENCOUNTERS[s.route[0]!];
-    expect(s.enemies.map((e) => e.name)).toEqual(first.enemies.map((e) => e.name));
+    expect(s).toMatchObject({ phase: 'relicChoice', afterRelic: 'battle', battleIndex: 0, relics: [], enemies: [] });
+    expect(s.relicOptions).toHaveLength(3);
+    expect(new Set(s.relicOptions).size).toBe(3);
     expect(ofType(r.events, 'routeBuilt')[0]?.route).toEqual(s.route);
+    expect(ofType(r.events, 'relicOffered')[0]?.relicIds).toEqual(s.relicOptions);
+  });
+
+  it('選完媒介物品進入第 1 場', () => {
+    const s = reduce(createInitialState(), { type: 'NEW_RUN', seed: 42 }).state;
+    const pick = s.relicOptions[1]!;
+    const r = reduce(s, { type: 'PICK_RELIC', relicId: pick });
+    const first = ENCOUNTERS[s.route[0]!];
+    expect(r.state).toMatchObject({ phase: 'battle', battleIndex: 0, turn: 1, relics: [pick], relicOptions: [], afterRelic: null });
+    expect(r.state.enemies.map((e) => e.name)).toEqual(first.enemies.map((e) => e.name));
+    expect(ofType(r.events, 'relicGained')[0]?.relicId).toBe(pick);
     expect(ofType(r.events, 'battleStarted')[0]).toMatchObject({ battleIndex: 0, encounterId: s.route[0], title: first.title });
-    expect(ofType(r.events, 'intentChosen')).toHaveLength(2);
   });
 
   it('戰鬥中也可以重新開始一輪', () => {
@@ -128,6 +139,56 @@ describe('移除與下一場', () => {
   });
 });
 
+describe('媒介物品的流程', () => {
+  /** 從第 4 場（精英一）開始的狀態 */
+  function atElite(seed = 3, relics: RelicId[] = []): GameState {
+    const s = cloneState(newRun(seed, relics));
+    startBattle({ state: s, events: [] }, 3);
+    return s;
+  }
+
+  it('打贏精英 → 先選媒介物品，選完再選牌', () => {
+    const s = winCurrentBattle(atElite());
+    expect(s).toMatchObject({ phase: 'relicChoice', afterRelic: 'reward', rewardOptions: [] });
+    const r = reduce(s, { type: 'PICK_RELIC', relicId: s.relicOptions[0]! });
+    expect(r.state.phase).toBe('reward');
+    expect(r.state.rewardOptions).toHaveLength(3);
+    expect(r.state.relics).toEqual([s.relicOptions[0]]);
+  });
+
+  it('打贏一般戰鬥直接選牌；打贏 Boss 直接勝利', () => {
+    expect(winCurrentBattle(newRun(3)).phase).toBe('reward');
+    const boss = cloneState(newRun(3));
+    startBattle({ state: boss, events: [] }, 9);
+    expect(winCurrentBattle(boss).phase).toBe('victory');
+  });
+
+  it('選項不含已持有的遺物；剩不到 3 個就給剩下的', () => {
+    const owned = ALL_RELIC_IDS.slice(0, 10);
+    const s = winCurrentBattle(atElite(3, owned));
+    expect([...s.relicOptions].sort()).toEqual(ALL_RELIC_IDS.slice(10).sort());
+  });
+
+  it('全部遺物都已持有 → 跳過選擇，直接選牌', () => {
+    const s = winCurrentBattle(atElite(3, [...ALL_RELIC_IDS]));
+    expect(s.phase).toBe('reward');
+  });
+
+  it('不在選項中、或不是選遺物階段 → 拒絕', () => {
+    const s = reduce(createInitialState(), { type: 'NEW_RUN', seed: 5 }).state;
+    const notOffered = ALL_RELIC_IDS.find((id) => !s.relicOptions.includes(id))!;
+    const r = reduce(s, { type: 'PICK_RELIC', relicId: notOffered });
+    expect(r.state).toBe(s);
+    expect(r.events[0]).toMatchObject({ type: 'actionRejected', reason: 'invalidChoice' });
+    expect(reduce(newRun(5), { type: 'PICK_RELIC', relicId: 'warmAmp' }).events[0]).toMatchObject({ reason: 'phase' });
+  });
+
+  it('選遺物不修改輸入', () => {
+    const s = deepFreeze(reduce(createInitialState(), { type: 'NEW_RUN', seed: 6 }).state);
+    expect(() => reduce(s, { type: 'PICK_RELIC', relicId: s.relicOptions[0]! })).not.toThrow();
+  });
+});
+
 describe('一輪的終點', () => {
   it('依序打完 10 場 → 本輪勝利（第 10 場後沒有選牌）', () => {
     let s = newRun(11);
@@ -139,6 +200,10 @@ describe('一輪的終點', () => {
       s = r.state.phase === 'battle' ? r.state : s;
       s = winCurrentBattle(s);
       if (i < ROUTE_LENGTH - 1) {
+        if (ENCOUNTERS[s.route[i]!].elite) {
+          expect(s.phase).toBe('relicChoice');
+          s = reduce(s, { type: 'PICK_RELIC', relicId: s.relicOptions[0]! }).state;
+        }
         expect(s.phase).toBe('reward');
         s = reduce(s, { type: 'PICK_REWARD', cardId: s.rewardOptions[0] ?? null }).state;
         s = reduce(s, { type: 'REMOVE_CARD', uid: null }).state;
@@ -148,6 +213,7 @@ describe('一輪的終點', () => {
     expect(s.rewardOptions).toEqual([]);
     expect(s.deck).toHaveLength(17 + 9);
     expect(titles).toEqual(s.route.map((id) => ENCOUNTERS[id].title));
+    expect(s.relics).toHaveLength(2);
   });
 
   it('勝利或失敗後，除了 NEW_RUN 以外的動作都會被拒絕', () => {
@@ -157,6 +223,7 @@ describe('一輪的終點', () => {
       { type: 'PLAY_CARD', uid: s.hand[0]?.uid ?? 0 },
       { type: 'PICK_REWARD', cardId: null },
       { type: 'REMOVE_CARD', uid: null },
+      { type: 'PICK_RELIC', relicId: 'warmAmp' },
     ];
     for (const a of actions) expect(reduce(s, a).events[0]).toMatchObject({ type: 'actionRejected', reason: 'phase' });
   });
