@@ -1,5 +1,6 @@
 // 遭遇與路線分段（追加規格 v2 第 3 節）。
 // 第 7–10 場（精英二、後段、Boss）的數值已對齊「攻擊 −3」之後的水準。
+// 平衡調整（2026-11-16，開發者決定）：所有敵人生命 ×1.25（無條件進位），行動模式不變。
 
 import type { EncounterId, IntentPattern } from '../engine/types.ts';
 
@@ -39,8 +40,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '車站外的月台',
     difficulty: 1,
     enemies: [
-      { name: '徘徊的執念', hp: 24, pattern: [A(6), A(4, 2), A(7)] },
-      { name: '低語的殘影', hp: 20, pattern: [A(5), DEF(6), A(8)] },
+      { name: '徘徊的執念', hp: 30, pattern: [A(6), A(4, 2), A(7)] },
+      { name: '低語的殘影', hp: 25, pattern: [A(5), DEF(6), A(8)] },
     ],
   },
   ticketOffice: {
@@ -48,8 +49,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '售票口',
     difficulty: 2,
     enemies: [
-      { name: '遺失車票的執念', hp: 34, pattern: [A(8), DEF(8), A(10)] },
-      { name: '低語的殘影', hp: 22, pattern: [A(5), DEF(6), A(9)] },
+      { name: '遺失車票的執念', hp: 43, pattern: [A(8), DEF(8), A(10)] },
+      { name: '低語的殘影', hp: 28, pattern: [A(5), DEF(6), A(9)] },
     ],
   },
   benches: {
@@ -57,9 +58,9 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '長椅區',
     difficulty: 3,
     enemies: [
-      { name: '等待的影子', hp: 18, pattern: [A(5), A(3, 2)] },
-      { name: '等待的影子', hp: 18, pattern: [A(3, 2), A(5)] },
-      { name: '等待的影子', hp: 18, pattern: [A(6), DEF(5)] },
+      { name: '等待的影子', hp: 23, pattern: [A(5), A(3, 2)] },
+      { name: '等待的影子', hp: 23, pattern: [A(3, 2), A(5)] },
+      { name: '等待的影子', hp: 23, pattern: [A(6), DEF(5)] },
     ],
   },
   ticketGate: {
@@ -67,8 +68,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '剪票口',
     difficulty: 1,
     enemies: [
-      { name: '剪票口的殘影', hp: 21, pattern: [A(4, 2), DEF(5), A(7)] },
-      { name: '剪票口的殘影', hp: 21, pattern: [DEF(5), A(7), A(4, 2)] },
+      { name: '剪票口的殘影', hp: 27, pattern: [A(4, 2), DEF(5), A(7)] },
+      { name: '剪票口的殘影', hp: 27, pattern: [DEF(5), A(7), A(4, 2)] },
     ],
   },
   lostAndFound: {
@@ -76,8 +77,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '失物招領櫃台',
     difficulty: 3,
     enemies: [
-      { name: '遺失車票的執念', hp: 30, pattern: [A(7), DEF(7), A(9)] },
-      { name: '等待的影子', hp: 18, pattern: [A(5), A(3, 2)] },
+      { name: '遺失車票的執念', hp: 38, pattern: [A(7), DEF(7), A(9)] },
+      { name: '等待的影子', hp: 23, pattern: [A(5), A(3, 2)] },
     ],
   },
 
@@ -87,14 +88,14 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '精英：凝固的候車室',
     elite: true,
     difficulty: 1,
-    enemies: [{ name: '月台的守候者', hp: 72, pattern: [A(11), AOE(6), DEF(12, 2), A(15)] }],
+    enemies: [{ name: '月台的守候者', hp: 90, pattern: [A(11), AOE(6), DEF(12, 2), A(15)] }],
   },
   lostStorage: {
     id: 'lostStorage',
     title: '精英：遺失物倉庫',
     elite: true,
     difficulty: 1,
-    enemies: [{ name: '堆積的遺失物', hp: 66, pattern: [DEF(10, 1), A(5, 2), AOE(7), A(13)] }],
+    enemies: [{ name: '堆積的遺失物', hp: 83, pattern: [DEF(10, 1), A(5, 2), AOE(7), A(13)] }],
   },
 
   // ───── 中段 ─────
@@ -103,8 +104,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '行李房',
     difficulty: 1,
     enemies: [
-      { name: '沉重的行囊', hp: 50, pattern: [DEF(10), A(14), A(6, 2)] },
-      { name: '徘徊的執念', hp: 26, pattern: [A(7), A(4, 2), A(8)] },
+      { name: '沉重的行囊', hp: 63, pattern: [DEF(10), A(14), A(6, 2)] },
+      { name: '徘徊的執念', hp: 33, pattern: [A(7), A(4, 2), A(8)] },
     ],
   },
   timetable: {
@@ -112,8 +113,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '時刻表前',
     difficulty: 2,
     enemies: [
-      { name: '錯過的班次', hp: 36, pattern: [A(9), AOE(5), A(7, 2)] },
-      { name: '錯過的班次', hp: 36, pattern: [AOE(5), A(7, 2), A(9)] },
+      { name: '錯過的班次', hp: 45, pattern: [A(9), AOE(5), A(7, 2)] },
+      { name: '錯過的班次', hp: 45, pattern: [AOE(5), A(7, 2), A(9)] },
     ],
   },
   platformTwo: {
@@ -121,8 +122,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '第二月台',
     difficulty: 2,
     enemies: [
-      { name: '掃不完的灰燼', hp: 40, pattern: [A(6, 2), DEF(9, 1), A(11)] },
-      { name: '低語的殘影', hp: 26, pattern: [A(6), DEF(7), A(9)] },
+      { name: '掃不完的灰燼', hp: 50, pattern: [A(6, 2), DEF(9, 1), A(11)] },
+      { name: '低語的殘影', hp: 33, pattern: [A(6), DEF(7), A(9)] },
     ],
   },
   queue: {
@@ -130,9 +131,9 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '擁擠的候車線',
     difficulty: 1,
     enemies: [
-      { name: '等待的影子', hp: 22, pattern: [A(6), A(4, 2)] },
-      { name: '等待的影子', hp: 22, pattern: [A(4, 2), A(6)] },
-      { name: '等待的影子', hp: 22, pattern: [A(7), DEF(6)] },
+      { name: '等待的影子', hp: 28, pattern: [A(6), A(4, 2)] },
+      { name: '等待的影子', hp: 28, pattern: [A(4, 2), A(6)] },
+      { name: '等待的影子', hp: 28, pattern: [A(7), DEF(6)] },
     ],
   },
 
@@ -142,7 +143,7 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '精英：停擺的鐘塔',
     elite: true,
     difficulty: 1,
-    enemies: [{ name: '停擺的鐘', hp: 95, pattern: [DEF(14, 2), A(7, 2), AOE(5), A(15)] }],
+    enemies: [{ name: '停擺的鐘', hp: 119, pattern: [DEF(14, 2), A(7, 2), AOE(5), A(15)] }],
   },
   signalRoom: {
     id: 'signalRoom',
@@ -150,8 +151,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     elite: true,
     difficulty: 1,
     enemies: [
-      { name: '失靈的信號燈', hp: 58, pattern: [AOE(4), A(10), DEF(10, 1), A(5, 2)] },
-      { name: '低語的殘影', hp: 26, pattern: [A(5), DEF(7), A(7)] },
+      { name: '失靈的信號燈', hp: 73, pattern: [AOE(4), A(10), DEF(10, 1), A(5, 2)] },
+      { name: '低語的殘影', hp: 33, pattern: [A(5), DEF(7), A(7)] },
     ],
   },
 
@@ -161,8 +162,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '天橋',
     difficulty: 1,
     enemies: [
-      { name: '墜落的瞬間', hp: 60, pattern: [A(13), A(2, 3), DEF(12)] },
-      { name: '低語的殘影', hp: 30, pattern: [A(6), DEF(8), A(8)] },
+      { name: '墜落的瞬間', hp: 75, pattern: [A(13), A(2, 3), DEF(12)] },
+      { name: '低語的殘影', hp: 38, pattern: [A(6), DEF(8), A(8)] },
     ],
   },
   endlessTrack: {
@@ -170,9 +171,9 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '無盡的軌道',
     difficulty: 2,
     enemies: [
-      { name: '軌道上的執念', hp: 34, pattern: [A(5), AOE(2), A(8)] },
-      { name: '軌道上的執念', hp: 34, pattern: [AOE(2), A(8), A(5)] },
-      { name: '軌道上的執念', hp: 34, pattern: [A(8), A(5), AOE(2)] },
+      { name: '軌道上的執念', hp: 43, pattern: [A(5), AOE(2), A(8)] },
+      { name: '軌道上的執念', hp: 43, pattern: [AOE(2), A(8), A(5)] },
+      { name: '軌道上的執念', hp: 43, pattern: [A(8), A(5), AOE(2)] },
     ],
   },
   platformEnd: {
@@ -180,8 +181,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '月台盡頭',
     difficulty: 1,
     enemies: [
-      { name: '沉重的行囊', hp: 56, pattern: [DEF(10), A(11), A(4, 2)] },
-      { name: '錯過的班次', hp: 32, pattern: [A(6), AOE(3), A(5, 2)] },
+      { name: '沉重的行囊', hp: 70, pattern: [DEF(10), A(11), A(4, 2)] },
+      { name: '錯過的班次', hp: 40, pattern: [A(6), AOE(3), A(5, 2)] },
     ],
   },
   lastCarriage: {
@@ -189,8 +190,8 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: '末班車的車廂',
     difficulty: 2,
     enemies: [
-      { name: '沉睡的乘客', hp: 40, pattern: [A(9), DEF(10, 1), AOE(3)] },
-      { name: '沉睡的乘客', hp: 40, pattern: [DEF(10, 1), AOE(3), A(9)] },
+      { name: '沉睡的乘客', hp: 50, pattern: [A(9), DEF(10, 1), AOE(3)] },
+      { name: '沉睡的乘客', hp: 50, pattern: [DEF(10, 1), AOE(3), A(9)] },
     ],
   },
 
@@ -200,14 +201,14 @@ export const ENCOUNTERS: Readonly<Record<EncounterId, EncounterDef>> = {
     title: 'Boss：永不出發的列車',
     boss: true,
     difficulty: 1,
-    enemies: [{ name: '褪色的列車長', hp: 160, pattern: [A(9), AOE(5), DEF(18, 3), A(6, 2), A(19)] }],
+    enemies: [{ name: '褪色的列車長', hp: 200, pattern: [A(9), AOE(5), DEF(18, 3), A(6, 2), A(19)] }],
   },
   stationOffice: {
     id: 'stationOffice',
     title: 'Boss：熄燈前的站務室',
     boss: true,
     difficulty: 1,
-    enemies: [{ name: '不肯熄燈的站長', hp: 150, pattern: [AOE(4), A(8, 2), DEF(15, 2), A(12), AOE(7)] }],
+    enemies: [{ name: '不肯熄燈的站長', hp: 188, pattern: [AOE(4), A(8, 2), DEF(15, 2), A(12), AOE(7)] }],
   },
 };
 

@@ -121,36 +121,37 @@ describe('遭遇資料', () => {
     for (const id of ALL_ENCOUNTER_IDS) expect(ENCOUNTERS[id].id).toBe(id);
   });
 
-  it('沿用的 10 組與第一版數值相同（精英二、後段、Boss 已含攻擊 −3）', () => {
+  // 平衡調整（2026-11-16，開發者決定）：所有敵人生命 ×1.25（無條件進位），行動模式不變
+  it('沿用的 10 組：行動模式與第一版相同（精英二、後段、Boss 已含攻擊 −3），生命 ×1.25', () => {
     expect(
       summary(['platform', 'ticketOffice', 'benches', 'waitingRoom', 'baggageRoom', 'timetable', 'clockTower', 'overpass', 'endlessTrack', 'train']),
     ).toEqual({
-      platform: ['車站外的月台', ['24:A(6) A(4,2) A(7)', '20:A(5) DEF(6) A(8)']],
-      ticketOffice: ['售票口', ['34:A(8) DEF(8) A(10)', '22:A(5) DEF(6) A(9)']],
-      benches: ['長椅區', ['18:A(5) A(3,2)', '18:A(3,2) A(5)', '18:A(6) DEF(5)']],
-      waitingRoom: ['精英：凝固的候車室', ['72:A(11) AOE(6) DEF(12,2) A(15)']],
-      baggageRoom: ['行李房', ['50:DEF(10) A(14) A(6,2)', '26:A(7) A(4,2) A(8)']],
-      timetable: ['時刻表前', ['36:A(9) AOE(5) A(7,2)', '36:AOE(5) A(7,2) A(9)']],
-      clockTower: ['精英：停擺的鐘塔', ['95:DEF(14,2) A(7,2) AOE(5) A(15)']],
-      overpass: ['天橋', ['60:A(13) A(2,3) DEF(12)', '30:A(6) DEF(8) A(8)']],
-      endlessTrack: ['無盡的軌道', ['34:A(5) AOE(2) A(8)', '34:AOE(2) A(8) A(5)', '34:A(8) A(5) AOE(2)']],
-      train: ['Boss：永不出發的列車', ['160:A(9) AOE(5) DEF(18,3) A(6,2) A(19)']],
+      platform: ['車站外的月台', ['30:A(6) A(4,2) A(7)', '25:A(5) DEF(6) A(8)']],
+      ticketOffice: ['售票口', ['43:A(8) DEF(8) A(10)', '28:A(5) DEF(6) A(9)']],
+      benches: ['長椅區', ['23:A(5) A(3,2)', '23:A(3,2) A(5)', '23:A(6) DEF(5)']],
+      waitingRoom: ['精英：凝固的候車室', ['90:A(11) AOE(6) DEF(12,2) A(15)']],
+      baggageRoom: ['行李房', ['63:DEF(10) A(14) A(6,2)', '33:A(7) A(4,2) A(8)']],
+      timetable: ['時刻表前', ['45:A(9) AOE(5) A(7,2)', '45:AOE(5) A(7,2) A(9)']],
+      clockTower: ['精英：停擺的鐘塔', ['119:DEF(14,2) A(7,2) AOE(5) A(15)']],
+      overpass: ['天橋', ['75:A(13) A(2,3) DEF(12)', '38:A(6) DEF(8) A(8)']],
+      endlessTrack: ['無盡的軌道', ['43:A(5) AOE(2) A(8)', '43:AOE(2) A(8) A(5)', '43:A(8) A(5) AOE(2)']],
+      train: ['Boss：永不出發的列車', ['200:A(9) AOE(5) DEF(18,3) A(6,2) A(19)']],
     });
   });
 
-  it('新增的 9 組符合追加規格第 3.3 節', () => {
+  it('新增的 9 組符合追加規格第 3.3 節（生命 ×1.25）', () => {
     expect(
       summary(['ticketGate', 'lostAndFound', 'lostStorage', 'platformTwo', 'queue', 'signalRoom', 'platformEnd', 'lastCarriage', 'stationOffice']),
     ).toEqual({
-      ticketGate: ['剪票口', ['21:A(4,2) DEF(5) A(7)', '21:DEF(5) A(7) A(4,2)']],
-      lostAndFound: ['失物招領櫃台', ['30:A(7) DEF(7) A(9)', '18:A(5) A(3,2)']],
-      lostStorage: ['精英：遺失物倉庫', ['66:DEF(10,1) A(5,2) AOE(7) A(13)']],
-      platformTwo: ['第二月台', ['40:A(6,2) DEF(9,1) A(11)', '26:A(6) DEF(7) A(9)']],
-      queue: ['擁擠的候車線', ['22:A(6) A(4,2)', '22:A(4,2) A(6)', '22:A(7) DEF(6)']],
-      signalRoom: ['精英：信號機房', ['58:AOE(4) A(10) DEF(10,1) A(5,2)', '26:A(5) DEF(7) A(7)']],
-      platformEnd: ['月台盡頭', ['56:DEF(10) A(11) A(4,2)', '32:A(6) AOE(3) A(5,2)']],
-      lastCarriage: ['末班車的車廂', ['40:A(9) DEF(10,1) AOE(3)', '40:DEF(10,1) AOE(3) A(9)']],
-      stationOffice: ['Boss：熄燈前的站務室', ['150:AOE(4) A(8,2) DEF(15,2) A(12) AOE(7)']],
+      ticketGate: ['剪票口', ['27:A(4,2) DEF(5) A(7)', '27:DEF(5) A(7) A(4,2)']],
+      lostAndFound: ['失物招領櫃台', ['38:A(7) DEF(7) A(9)', '23:A(5) A(3,2)']],
+      lostStorage: ['精英：遺失物倉庫', ['83:DEF(10,1) A(5,2) AOE(7) A(13)']],
+      platformTwo: ['第二月台', ['50:A(6,2) DEF(9,1) A(11)', '33:A(6) DEF(7) A(9)']],
+      queue: ['擁擠的候車線', ['28:A(6) A(4,2)', '28:A(4,2) A(6)', '28:A(7) DEF(6)']],
+      signalRoom: ['精英：信號機房', ['73:AOE(4) A(10) DEF(10,1) A(5,2)', '33:A(5) DEF(7) A(7)']],
+      platformEnd: ['月台盡頭', ['70:DEF(10) A(11) A(4,2)', '40:A(6) AOE(3) A(5,2)']],
+      lastCarriage: ['末班車的車廂', ['50:A(9) DEF(10,1) AOE(3)', '50:DEF(10,1) AOE(3) A(9)']],
+      stationOffice: ['Boss：熄燈前的站務室', ['188:AOE(4) A(8,2) DEF(15,2) A(12) AOE(7)']],
     });
   });
 
