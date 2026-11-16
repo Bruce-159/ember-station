@@ -1,7 +1,7 @@
 // 手感（第 4 節）：把引擎事件轉成畫面上的浮動數字與震動，以及影格的播放時序。
 // 純函式、不依賴 React，可以在 Node 測試。
 
-import type { Frame, GameEvent } from '../engine/types.ts';
+import type { Frame, GameEvent, RelicId } from '../engine/types.ts';
 
 /** 敵人之間的行動間隔 */
 export const ENEMY_STEP_MS = 400;
@@ -14,7 +14,7 @@ export type EffectTone = 'damage' | 'poison' | 'block' | 'heal' | 'ember' | 'mis
 
 export interface Effect {
   id: number;
-  /** 顯示在哪個單位上：同伴 id、敵人 id 或 'lucian' */
+  /** 顯示在哪裡：同伴 id、敵人 id、'lucian'，或遺物徽章（relicEffectTarget） */
   targetId: string;
   text: string;
   tone: EffectTone;
@@ -23,6 +23,11 @@ export interface Effect {
 }
 
 type Draft = Omit<Effect, 'id'>;
+
+/** 遺物徽章的效果目標 id（RelicBar 依此判斷要不要閃動） */
+export function relicEffectTarget(id: RelicId): string {
+  return `relic:${id}`;
+}
 
 function toEffects(e: GameEvent): Draft[] {
   switch (e.type) {
@@ -57,6 +62,8 @@ function toEffects(e: GameEvent): Draft[] {
       return [{ targetId: e.enemyId, text: `壓制 −${e.amount}`, tone: 'block', hit: false }];
     case 'strength':
       return [{ targetId: e.enemyId, text: `攻擊力 +${e.amount}`, tone: 'damage', hit: false }];
+    case 'relicTriggered':
+      return [{ targetId: relicEffectTarget(e.relicId), text: '生效', tone: 'ember', hit: false }];
     default:
       return [];
   }

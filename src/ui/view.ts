@@ -2,9 +2,12 @@
 
 import { CARDS, describeCard } from '../data/cards.ts';
 import { ALLY_ORDER, CHARACTERS } from '../data/characters.ts';
+import { ENCOUNTERS } from '../data/encounters.ts';
+import { describeRelic, RELICS, type RelicTheme } from '../data/relics.ts';
 import { intentDamage } from '../engine/enemyAI.ts';
 import { isBackwater } from '../engine/combat.ts';
 import { canPlayCard, previewMultiplier } from '../engine/reducer.ts';
+import { restHealPercent } from '../engine/relics.ts';
 import { percentCeil, REST_HEAL_PERCENT, REVIVE_PERCENT } from '../engine/run.ts';
 import type {
   Ally,
@@ -15,6 +18,8 @@ import type {
   CharacterId,
   Enemy,
   GameState,
+  Multiplier,
+  RelicId,
   TargetKind,
   UnplayableReason,
 } from '../engine/types.ts';
@@ -41,6 +46,8 @@ export interface CardView {
   typeName: string;
   description: string;
   target: TargetKind;
+  /** 打出時的增幅倍率 */
+  multiplier: Multiplier;
   /** 打出時會被增幅 */
   amplified: boolean;
   playable: boolean;
@@ -62,7 +69,8 @@ export function handCardView(state: GameState, card: CardInstance): CardView {
     typeName: TYPE_NAME[def.type],
     description: describeCard(card.cardId, { state, m }),
     target: def.target,
-    amplified: m === 2,
+    multiplier: m,
+    amplified: m > 1,
     playable: check.ok,
     disabledReason: check.ok ? null : UNPLAYABLE_TEXT[check.reason],
   };
@@ -81,6 +89,7 @@ export function previewCardView(cardId: CardId, uid = 0): CardView {
     typeName: TYPE_NAME[def.type],
     description: describeCard(cardId),
     target: def.target,
+    multiplier: 1,
     amplified: false,
     playable: true,
     disabledReason: null,
@@ -187,9 +196,69 @@ export interface RestPreview {
 
 /** 休息後每位同伴的生命（與 run.ts 的 rest 同一套公式） */
 export function restPreview(state: GameState): RestPreview[] {
+  const healPercent = restHealPercent(state, REST_HEAL_PERCENT);
   return state.allies.map((a) => {
     const revived = a.hp <= 0;
-    const to = revived ? percentCeil(a.maxHp, REVIVE_PERCENT) : Math.min(a.maxHp, a.hp + percentCeil(a.maxHp, REST_HEAL_PERCENT));
+    const to = revived ? percentCeil(a.maxHp, REVIVE_PERCENT) : Math.min(a.maxHp, a.hp + percentCeil(a.maxHp, healPercent));
     return { id: a.id, name: CHARACTERS[a.id].name, from: a.hp, to, maxHp: a.maxHp, revived };
   });
+}
+
+// ───────────── 媒介物品 ─────────────
+
+export const RELIC_THEME_NAME: Readonly<Record<RelicTheme, string>> = {
+  amp: '增幅',
+  leon: '雷翁',
+  agnes: '阿格妮絲',
+  ace: '艾斯',
+  general: '通用',
+};
+
+export interface RelicView {
+  id: RelicId;
+  name: string;
+  theme: RelicTheme;
+  themeName: string;
+  /** 徽章上顯示的一個字 */
+  short: string;
+  description: string;
+}
+
+export function relicView(id: RelicId): RelicView {
+  const def = RELICS[id];
+  return {
+    id,
+    name: def.name,
+    theme: def.theme,
+    themeName: RELIC_THEME_NAME[def.theme],
+    short: def.name.slice(0, 1),
+    description: describeRelic(id),
+  };
+}
+
+// ───────────── 路線 ─────────────
+
+export type StopKind = 'normal' | 'elite' | 'boss';
+export type StopStatus = 'done' | 'current' | 'upcoming';
+
+export interface RouteStop {
+  index: number;
+  title: string;
+  kind: StopKind;
+  status: StopStatus;
+}
+
+export function routeView(state: GameState): RouteStop[] {
+  return state.route.map((id, index) => {
+    const e = ENCOUNTERS[id];
+    const kind: StopKind = e.boss ? 'boss' : e.elite ? 'elite' : 'normal';
+    const status: StopStatus = index < state.battleIndex ? 'done' : index === state.battleIndex ? 'current' : 'upcoming';
+    return { index, title: e.title, kind, status };
+  });
+}
+
+/** 下一站：開局選遺物時是第 1 場；之後是目前這場的下一場；最後一場之後為 null */
+export function nextStop(state: GameState): RouteStop | null {
+  const atStart = state.phase === 'relicChoice' && state.afterRelic === 'battle';
+  return routeView(state)[atStart ? state.battleIndex : state.battleIndex + 1] ?? null;
 }

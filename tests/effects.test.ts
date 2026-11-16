@@ -9,6 +9,7 @@ import {
   eventsToEffects,
   frameSchedule,
   latestHit,
+  relicEffectTarget,
   RESULT_HOLD_MS,
 } from '../src/ui/effects.ts';
 import { initUi, uiReducer } from '../src/ui/uiState.ts';
@@ -65,6 +66,12 @@ describe('浮動數字', () => {
     expect(eventsToEffects(r2.events, 1).map((e) => e.text)).toEqual(['+8 毒']);
   });
 
+  it('遺物生效 → 對應徽章的效果（用來閃動）', () => {
+    const [e] = eventsToEffects([{ type: 'relicTriggered', relicId: 'warmAmp' }], 1);
+    expect(e).toMatchObject({ targetId: relicEffectTarget('warmAmp'), tone: 'ember', hit: false });
+    expect(relicEffectTarget('warmAmp')).toBe('relic:warmAmp');
+  });
+
   it('latestHit 找出該單位最近一次受擊', () => {
     const list = eventsToEffects(
       [
@@ -91,6 +98,7 @@ describe('影格播放時序', () => {
   it('戰鬥結束前多停一下，讓玩家看到最後一擊', () => {
     expect(frameSchedule(frames(['battle', 'reward']))).toEqual([0, RESULT_HOLD_MS]);
     expect(frameSchedule(frames(['battle', 'battle', 'defeat']))).toEqual([0, 400, 400 + RESULT_HOLD_MS]);
+    expect(frameSchedule(frames(['battle', 'relicChoice']))).toEqual([0, RESULT_HOLD_MS]);
   });
 
   it('實際結束回合：棄牌 → 敵人 e0 → 敵人 e1 → 新回合', () => {

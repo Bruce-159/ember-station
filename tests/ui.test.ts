@@ -1,13 +1,13 @@
 // UI 純邏輯：畫面資料、紀錄文字、存檔、UI 狀態機（不需要 DOM）
 
 import { describe, expect, it } from 'vitest';
-import { reduce } from '../src/engine/reducer.ts';
-import { createInitialState } from '../src/engine/run.ts';
+import { cloneState, reduce } from '../src/engine/reducer.ts';
+import { createInitialState, startBattle } from '../src/engine/run.ts';
 import type { GameEvent, GameState } from '../src/engine/types.ts';
 import { eventToText } from '../src/ui/eventText.ts';
 import { deserialize, isValidState, loadSave, SAVE_KEY, SAVE_VERSION, serialize, writeSave, type StorageLike } from '../src/ui/save.ts';
-import { initUi, keyToHandIndex, pendingTarget, uiReducer, type UiState } from '../src/ui/uiState.ts';
-import { allyTags, enemyTags, handCardView, intentView, previewCardView, restPreview, sortedDeck } from '../src/ui/view.ts';
+import { initUi, keyToChoiceIndex, keyToHandIndex, pendingTarget, uiReducer, type UiState } from '../src/ui/uiState.ts';
+import { allyTags, enemyTags, handCardView, intentView, nextStop, previewCardView, relicView, restPreview, routeView, sortedDeck } from '../src/ui/view.ts';
 import { ally, autoplayRun, battleState, enemy, freshRun, newRun, play } from './helpers.ts';
 
 function memoryStorage(): StorageLike & { data: Map<string, string> } {
@@ -23,6 +23,20 @@ function memoryStorage(): StorageLike & { data: Map<string, string> } {
 const uiWith = (game: GameState): UiState => ({ ...initUi(game) });
 
 describe('卡牌顯示', () => {
+  it('共鳴水晶：卡面顯示 ×3 與實際傷害', () => {
+    const s = battleState({
+      hand: ['pulse'],
+      patch: (st) => {
+        st.ampCharges = 1;
+        st.relics = ['resonanceCrystal'];
+      },
+    });
+    const v = handCardView(s, s.hand[0]!);
+    expect(v).toMatchObject({ multiplier: 3, amplified: true });
+    expect(v.description).toContain('18');
+    expect(previewCardView('pulse').multiplier).toBe(1);
+  });
+
   it('被增幅的牌即時顯示加倍後的數字並標註增幅', () => {
     const s = battleState({ hand: ['pulse', 'amp'], patch: (st) => (st.ampCharges = 1) });
     const pulse = handCardView(s, s.hand[0]!);
@@ -110,6 +124,45 @@ describe('意圖與狀態標籤', () => {
     expect(preview.map((p) => p.to)).toEqual(after.allies.map((a) => a.hp));
     expect(preview[0]).toMatchObject({ revived: true, to: 15 });
   });
+
+  it('有旅人的水壺時，休息預覽也是 40%', () => {
+    let s = battleState({ hand: ['pulse'], enemies: [{ hp: 1 }], allyHp: { agnes: 10 }, patch: (st) => (st.relics = ['travelersFlask']) });
+    s = play(s, 'pulse').state;
+    s = reduce(s, { type: 'PICK_REWARD', cardId: null }).state;
+    const preview = restPreview(s);
+    const after = reduce(s, { type: 'REMOVE_CARD', uid: null }).state;
+    expect(preview.map((p) => p.to)).toEqual(after.allies.map((a) => a.hp));
+    expect(preview[1]?.to).toBe(25);
+  });
+});
+
+describe('媒介物品與路線的畫面資料', () => {
+  it('遺物：名稱、縮寫、方向、說明', () => {
+    expect(relicView('sacredOath')).toMatchObject({ name: '聖隊的誓約', short: '聖', theme: 'leon', themeName: '雷翁' });
+    expect(relicView('sacredOath').description).toContain('60%');
+  });
+
+  it('路線：已通過／目前／未到，標出精英與 Boss', () => {
+    const s = cloneState(newRun(2));
+    startBattle({ state: s, events: [] }, 4);
+    const stops = routeView(s);
+    expect(stops).toHaveLength(10);
+    expect(stops.map((x) => x.status)).toEqual(['done', 'done', 'done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
+    expect([stops[3]?.kind, stops[6]?.kind, stops[9]?.kind, stops[0]?.kind]).toEqual(['elite', 'elite', 'boss', 'normal']);
+  });
+
+  it('下一站：開局選遺物時是第 1 場；戰鬥中是下一場；最後一場之後沒有', () => {
+    expect(nextStop(freshRun(2))?.index).toBe(0);
+    expect(nextStop(newRun(2))?.index).toBe(1);
+    const last = cloneState(newRun(2));
+    startBattle({ state: last, events: [] }, 9);
+    expect(nextStop(last)).toBeNull();
+  });
+
+  it('選遺物的鍵盤：只有 1–選項數有作用', () => {
+    expect(['1', '2', '3', '4', '0', 'a'].map((k) => keyToChoiceIndex(k, 3))).toEqual([0, 1, 2, null, null, null]);
+    expect(keyToChoiceIndex('2', 1)).toBeNull();
+  });
 });
 
 describe('戰鬥紀錄文字', () => {
@@ -135,7 +188,11 @@ describe('戰鬥紀錄文字', () => {
     expect(t({ type: 'cardPlayed', uid: 1, cardId: 'herb', multiplier: 2, targetId: 'e0' })).toBe('阿格妮絲打出「毒草」（增幅） → 「測試敵人e0」');
     expect(t({ type: 'damage', targetId: 'e0', amount: 9, blocked: 0, source: 'lucian', sourceId: 'lucian' })).toBe('盧西安對「測試敵人e0」造成 9 點傷害');
     expect(t({ type: 'damage', targetId: 'leon', amount: 3, blocked: 5, source: 'enemy', sourceId: 'e0' })).toBe('「測試敵人e0」攻擊雷翁，造成 3 點傷害（格擋擋下 5）');
-    expect(t({ type: 'bet', success: false, reason: 'roll', chance: 0.6, luck: 2 })).toBe('下注失敗（成功率 60%），手氣 +1（目前 2）');
+    expect(t({ type: 'bet', success: false, reason: 'roll', chance: 0.6, luck: 2 })).toBe('下注失敗（成功率 60%），手氣累積到 2');
+    expect(t({ type: 'cardPlayed', uid: 1, cardId: 'pulse', multiplier: 3, targetId: 'e0' })).toBe('盧西安打出「脈衝」（增幅 ×3） → 「測試敵人e0」');
+    expect(t({ type: 'relicGained', relicId: 'warmAmp' })).toBe('獲得媒介物品「預熱的增幅器」');
+    expect(t({ type: 'relicTriggered', relicId: 'pyreEmber' })).toBe('媒介物品「火刑柱的餘燼」生效');
+    expect(t({ type: 'relicOffered', relicIds: ['warmAmp'] })).toBeUndefined();
     expect(t({ type: 'bet', success: true, reason: 'rigged', chance: 1, luck: 0 })).toBe('下注成功（出千）');
     expect(t({ type: 'allyDown', allyId: 'leon' })).toContain('雷翁倒下了');
     expect(t({ type: 'heal', targetId: 'ace', amount: 0 })).toBeUndefined();

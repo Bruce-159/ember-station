@@ -42,7 +42,8 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
     case 'cardPlayed': {
       const def = CARDS[e.cardId];
       const target = e.targetId ? ` → ${quoted(e.targetId)}` : '';
-      return { text: `${CHARACTERS[def.owner].name}打出「${def.name}」${e.multiplier === 2 ? '（增幅）' : ''}${target}`, kind: 'normal' };
+      const amp = e.multiplier === 1 ? '' : e.multiplier === 2 ? '（增幅）' : `（增幅 ×${e.multiplier}）`;
+      return { text: `${CHARACTERS[def.owner].name}打出「${def.name}」${amp}${target}`, kind: 'normal' };
     }
     case 'ampSet':
       return { text: `增幅待命 ${e.charges} 次`, kind: 'good' };
@@ -79,7 +80,7 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
         const why = e.reason === 'rigged' ? '出千' : e.reason === 'loadedDice' ? '灌鉛骰子' : `成功率 ${pct(e.chance)}`;
         return { text: `下注成功（${why}）`, kind: 'good' };
       }
-      return { text: `下注失敗（成功率 ${pct(e.chance)}），手氣 +1（目前 ${e.luck}）`, kind: 'bad' };
+      return { text: `下注失敗（成功率 ${pct(e.chance)}），手氣累積到 ${e.luck}`, kind: 'bad' };
     }
     case 'luckSpent':
       return { text: `艾斯用掉 ${e.amount} 層手氣`, kind: 'normal' };

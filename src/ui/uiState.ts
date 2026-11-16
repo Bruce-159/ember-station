@@ -135,3 +135,10 @@ export function keyToHandIndex(key: string): number | null {
   if (/^[1-9]$/.test(key)) return Number(key) - 1;
   return null;
 }
+
+/** 選擇畫面（例如媒介物品）：1 ～ count 對應第 1 ～ count 個選項；其他鍵回傳 null */
+export function keyToChoiceIndex(key: string, count: number): number | null {
+  if (!/^[1-9]$/.test(key)) return null;
+  const index = Number(key) - 1;
+  return index < count ? index : null;
+}
