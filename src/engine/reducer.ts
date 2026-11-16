@@ -7,12 +7,14 @@ import {
   aliveEnemies,
   allAlliesDead,
   allEnemiesDead,
+  drawCards,
   getAlly,
   isAlive,
   isCharacterAvailable,
   startPlayerTurn,
 } from './combat.ts';
 import { runEnemyAction } from './enemyAI.ts';
+import { ampMultiplier, overloadCoilDraw, spendResonance } from './relics.ts';
 import { loseRun, pickReward, removeCardAndContinue, startRun, winBattle } from './run.ts';
 import type {
   Action,
@@ -67,7 +69,7 @@ export function canPlayCard(state: GameState, uid: number): Playability {
 
 /** 打出這張牌時會套用的增幅倍率（UI 預覽用） */
 export function previewMultiplier(state: GameState, def: CardDef): Multiplier {
-  return !def.isAmp && state.ampCharges > 0 ? 2 : 1;
+  return !def.isAmp && state.ampCharges > 0 ? ampMultiplier(state) : 1;
 }
 
 /** 合法目標的 id 清單；不需要目標時為空陣列 */
@@ -167,18 +169,20 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
   s.energy -= def.cost;
   s.hand = s.hand.filter((c) => c.uid !== handCard.uid);
 
-  // 2. 計算增幅倍率
-  let m: Multiplier = 1;
-  if (!def.isAmp && s.ampCharges > 0) {
-    m = 2;
-    s.ampCharges -= 1;
-  }
+  // 2. 計算增幅倍率（共鳴水晶讓每場第一次為 3）
+  const m: Multiplier = !def.isAmp && s.ampCharges > 0 ? ampMultiplier(s) : 1;
+  if (m > 1) s.ampCharges -= 1;
   ctx.events.push({ type: 'cardPlayed', uid: handCard.uid, cardId: def.id, multiplier: m, targetId });
+  if (m > 2) spendResonance(ctx);
 
   // 3. 結算效果
   const enemy = def.target === 'enemy' ? (s.enemies.find((e) => e.id === targetId) ?? null) : null;
   const ally = def.target === 'ally' ? getAlly(s, targetId as AllyId) : null;
   def.play({ state: s, events: ctx.events, m, enemy, ally }, def.values);
+  if (def.isAmp) {
+    const extra = overloadCoilDraw(ctx);
+    if (extra > 0) drawCards(ctx, extra);
+  }
 
   // 4. 卡牌去向：能力牌與「打出後移除」進移除區，其他進棄牌堆
   if (def.type === 'power' || def.exhaust) s.exhausted.push(handCard);

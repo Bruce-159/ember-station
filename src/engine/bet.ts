@@ -1,5 +1,6 @@
 // 下注判定（艾斯，第 3.4 節）
 
+import { BASE_LUCK_ON_LOSS, luckOnLoss, relicTriggered } from './relics.ts';
 import { nextFloat } from './rng.ts';
 import type { BetReason, Ctx, GameState } from './types.ts';
 
@@ -45,7 +46,11 @@ export function resolveBet(ctx: Ctx): boolean {
   }
   state.firstBetDone = true;
   if (success) state.luck = 0;
-  else state.luck += 1;
+  else {
+    const gain = luckOnLoss(state);
+    if (gain !== BASE_LUCK_ON_LOSS) relicTriggered(ctx, 'cheatersWatch');
+    state.luck += gain;
+  }
   ctx.events.push({ type: 'bet', success, reason: guaranteed ?? 'roll', chance, luck: state.luck });
   return success;
 }

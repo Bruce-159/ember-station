@@ -7,7 +7,7 @@ import { STARTER_DECK } from '../data/starterDeck.ts';
 import { startPlayerTurn } from './combat.ts';
 import { chooseIntent } from './enemyAI.ts';
 import { seedToState, shuffle } from './rng.ts';
-import { emptyRelicFlags } from './relics.ts';
+import { emptyRelicFlags, onBattleStart, relicTriggered, restHealPercent } from './relics.ts';
 import { buildRoute } from './route.ts';
 import type { CardId, CardInstance, Ctx, GameState } from './types.ts';
 
@@ -106,6 +106,7 @@ export function startBattle(ctx: Ctx, battleIndex: number): void {
     a.thorns = 0;
   }
   ctx.events.push({ type: 'battleStarted', battleIndex, encounterId, title: def.title });
+  onBattleStart(ctx);
   for (const e of state.enemies) chooseIntent(ctx, e);
   startPlayerTurn(ctx);
 }
@@ -161,12 +162,14 @@ export function removeCardAndContinue(ctx: Ctx, uid: number | null): void {
 
 /** 休息：倒下的同伴以 ceil(maxHp × 0.3) 復活；其他同伴回復 ceil(maxHp × 0.25)，不超過上限 */
 export function rest(ctx: Ctx): void {
+  const percent = restHealPercent(ctx.state, REST_HEAL_PERCENT);
+  if (percent !== REST_HEAL_PERCENT) relicTriggered(ctx, 'travelersFlask');
   for (const a of ctx.state.allies) {
     if (a.hp <= 0) {
       a.hp = percentCeil(a.maxHp, REVIVE_PERCENT);
       ctx.events.push({ type: 'revived', allyId: a.id, hp: a.hp });
     } else {
-      const healed = Math.min(a.maxHp - a.hp, percentCeil(a.maxHp, REST_HEAL_PERCENT));
+      const healed = Math.min(a.maxHp - a.hp, percentCeil(a.maxHp, percent));
       a.hp += healed;
       ctx.events.push({ type: 'heal', targetId: a.id, amount: healed });
     }

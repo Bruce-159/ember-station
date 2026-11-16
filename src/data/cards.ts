@@ -7,6 +7,7 @@ import {
   addAllyBlock,
   aliveEnemies,
   applyPoison,
+  checkBackwaterRelics,
   damageEnemy,
   drawCards,
   gainEnergy,
@@ -219,6 +220,7 @@ function leon() {
         leonAlly.hp = Math.max(1, leonAlly.hp - v.hpCost);
         ctx.events.push({ type: 'hpLoss', targetId: 'leon', amount: before - leonAlly.hp });
         gainEnergy(ctx, v.energy * ctx.m);
+        checkBackwaterRelics(ctx);
       },
       describe: ({ m }, v) => `雷翁失去 ${v.hpCost} 點生命（最低保留 1），獲得 ${v.energy * m} 點能量`,
     }),
@@ -237,7 +239,7 @@ function leon() {
       },
       describe: ({ state, m }, v) => {
         const base = '造成等同雷翁目前格擋的傷害';
-        if (!state) return m > 1 ? `${base}（加倍）` : base;
+        if (!state) return m > 1 ? `${base}（×${m}）` : base;
         return `${base}（目前 ${getAlly(state, 'leon').block * v.blockRatio * m}）`;
       },
     }),
@@ -335,7 +337,7 @@ function agnes() {
       },
       describe: ({ m, enemy }, v) => {
         const now = enemy ? `（目前 ${(v.damage + enemy.poison) * m}）` : '';
-        return `造成 ${v.damage} 點傷害，再加上目標的中毒層數${m > 1 ? '，總和加倍' : ''}${now}`;
+        return `造成 ${v.damage} 點傷害，再加上目標的中毒層數${m > 1 ? `，總和 ×${m}` : ''}${now}`;
       },
     }),
     miasma: defineCard({

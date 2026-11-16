@@ -1,6 +1,16 @@
 // 戰鬥規則：傷害、格擋、回復、中毒、抽牌、洗牌。
 // 所有函式都只修改 reducer 傳進來的草稿狀態，並把發生的事寫進 events。
 
+import {
+  BASE_BACKWATER_PERCENT,
+  backwaterPercent,
+  firstTurnExtraDraw,
+  onLeonBackwater,
+  poisonBonus,
+  relicTriggered,
+  transferPoisonOnDeath,
+  turnStartEnergyBonus,
+} from './relics.ts';
 import { shuffle } from './rng.ts';
 import type { Ally, AllyId, CharacterId, Ctx, Enemy, GameState } from './types.ts';
 
@@ -34,10 +44,23 @@ export function aliveEnemies(state: GameState): Enemy[] {
   return state.enemies.filter(isAlive);
 }
 
-/** 背水：雷翁未倒下且生命 <= 上限的一半 */
+/** 背水：雷翁未倒下且生命 <= 上限的 50%（聖隊的誓約為 60%），以整數計算 */
 export function isBackwater(state: GameState): boolean {
   const leon = getAlly(state, 'leon');
-  return leon.hp > 0 && leon.hp <= leon.maxHp / 2;
+  return leon.hp > 0 && leon.hp * 100 <= leon.maxHp * backwaterPercent(state);
+}
+
+/** 雷翁失去生命之後、回合開始清空格擋之後呼叫：處於背水就觸發相關遺物 */
+export function checkBackwaterRelics(ctx: Ctx): void {
+  if (!isBackwater(ctx.state)) return;
+  const leon = getAlly(ctx.state, 'leon');
+  onLeonBackwater(ctx, leon, leon.hp * 100 > leon.maxHp * BASE_BACKWATER_PERCENT);
+}
+
+/** 敵人死亡：送出事件，並處理死亡時觸發的遺物 */
+function enemyDied(ctx: Ctx, enemy: Enemy): void {
+  ctx.events.push({ type: 'enemyDefeated', enemyId: enemy.id });
+  transferPoisonOnDeath(ctx, enemy);
 }
 
 export function allEnemiesDead(state: GameState): boolean {
@@ -76,7 +99,7 @@ function applyDamageToEnemy(
   const amount = Math.min(enemy.hp, d - blocked);
   enemy.hp -= amount;
   ctx.events.push({ type: 'damage', targetId: enemy.id, amount, blocked, source, sourceId });
-  if (enemy.hp === 0) ctx.events.push({ type: 'enemyDefeated', enemyId: enemy.id });
+  if (enemy.hp === 0) enemyDied(ctx, enemy);
   return amount;
 }
 
@@ -85,10 +108,14 @@ export function addEnemyBlock(ctx: Ctx, enemy: Enemy, amount: number): void {
   ctx.events.push({ type: 'block', targetId: enemy.id, amount });
 }
 
+/** 施加中毒（卡牌用）。焦黑的藥草袋讓每次 +1；火刑柱的餘燼的轉移不經過這裡 */
 export function applyPoison(ctx: Ctx, enemy: Enemy, amount: number): void {
   if (!isAlive(enemy)) return;
-  enemy.poison += amount;
-  ctx.events.push({ type: 'poison', targetId: enemy.id, amount, total: enemy.poison });
+  const bonus = amount > 0 ? poisonBonus(ctx.state) : 0;
+  if (bonus > 0) relicTriggered(ctx, 'charredPouch');
+  const total = amount + bonus;
+  enemy.poison += total;
+  ctx.events.push({ type: 'poison', targetId: enemy.id, amount: total, total: enemy.poison });
 }
 
 /**
@@ -102,7 +129,7 @@ export function tickPoison(ctx: Ctx, enemy: Enemy): boolean {
   ctx.events.push({ type: 'damage', targetId: enemy.id, amount, blocked: 0, source: 'poison', sourceId: null });
   if (!ctx.state.powers.lingeringPoison) enemy.poison -= 1;
   if (enemy.hp === 0) {
-    ctx.events.push({ type: 'enemyDefeated', enemyId: enemy.id });
+    enemyDied(ctx, enemy);
     return true;
   }
   return false;
@@ -121,13 +148,14 @@ export function damageAlly(ctx: Ctx, ally: Ally, d: number, attacker: Enemy): nu
   const amount = Math.min(ally.hp, d - blocked);
   ally.hp -= amount;
   ctx.events.push({ type: 'damage', targetId: ally.id, amount, blocked, source: 'enemy', sourceId: attacker.id });
+  if (ally.id === 'leon' && amount > 0) checkBackwaterRelics(ctx);
 
   if (ally.id === 'leon' && ally.thorns > 0 && isAlive(attacker)) {
     // 反擊：直接扣血，不受解析與格擋影響
     const th = Math.min(attacker.hp, ally.thorns);
     attacker.hp -= th;
     ctx.events.push({ type: 'damage', targetId: attacker.id, amount: th, blocked: 0, source: 'thorns', sourceId: 'leon' });
-    if (attacker.hp === 0) ctx.events.push({ type: 'enemyDefeated', enemyId: attacker.id });
+    if (attacker.hp === 0) enemyDied(ctx, attacker);
   }
 
   if (ally.hp === 0) ctx.events.push({ type: 'allyDown', allyId: ally.id });
@@ -198,6 +226,16 @@ export function startPlayerTurn(ctx: Ctx): void {
   for (const e of state.enemies) e.analyzed = false;
   state.sleeveUsed = false;
   state.firstBetDone = false;
+  state.relicFlags.coilUsed = false;
   ctx.events.push({ type: 'turnStarted', turn: state.turn });
-  drawCards(ctx, DRAW_PER_TURN);
+
+  const bonusEnergy = turnStartEnergyBonus(state);
+  if (bonusEnergy > 0) {
+    relicTriggered(ctx, 'meteorShard');
+    gainEnergy(ctx, bonusEnergy);
+  }
+  checkBackwaterRelics(ctx);
+  const extraDraw = firstTurnExtraDraw(state);
+  if (extraDraw > 0) relicTriggered(ctx, 'fadedTimetable');
+  drawCards(ctx, DRAW_PER_TURN + extraDraw);
 }

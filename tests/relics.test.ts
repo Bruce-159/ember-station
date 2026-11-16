@@ -1,8 +1,12 @@
 // 媒介物品（追加規格 v2 第 4 節）
 
 import { describe, expect, it } from 'vitest';
+import { CARDS } from '../src/data/cards.ts';
 import { ALL_RELIC_IDS, describeRelic, RELICS } from '../src/data/relics.ts';
-import { cloneState } from '../src/engine/reducer.ts';
+import { nextBetChance } from '../src/engine/bet.ts';
+import { isBackwater } from '../src/engine/combat.ts';
+import { cloneState, previewMultiplier } from '../src/engine/reducer.ts';
+import { rest, startBattle } from '../src/engine/run.ts';
 import {
   ampMultiplier,
   backwaterPercent,
@@ -18,7 +22,7 @@ import {
   turnStartEnergyBonus,
 } from '../src/engine/relics.ts';
 import type { GameEvent, GameState, RelicId } from '../src/engine/types.ts';
-import { ally, battleState, enemy, ofType, type BattleSpec } from './helpers.ts';
+import { ally, battleState, endTurn, enemy, newRun, ofType, play, rngStateWhere, type BattleSpec } from './helpers.ts';
 
 /** 持有指定遺物的戰鬥狀態 */
 function withRelics(relics: RelicId[], spec: BattleSpec = {}): GameState {
@@ -151,5 +155,180 @@ describe('效果函式', () => {
     const without = ctxOf(withRelics([], { enemies: [{ hp: 0, poison: 4 }, { hp: 30 }] }));
     transferPoisonOnDeath(without, enemy(without.state, 'e0'));
     expect(enemy(without.state, 'e1').poison).toBe(0);
+  });
+});
+
+/** 從第 1 場開頭重新開戰（觸發戰鬥開始的遺物） */
+function startedWith(relics: RelicId[], patch?: (s: GameState) => void): { state: GameState; events: GameEvent[] } {
+  const state = cloneState(newRun(1));
+  state.relics = [...relics];
+  patch?.(state);
+  const ctx = { state, events: [] as GameEvent[] };
+  startBattle(ctx, 0);
+  return ctx;
+}
+
+const relicEvents = (events: GameEvent[]) => ofType(events, 'relicTriggered').map((e) => e.relicId);
+
+describe('接進戰鬥：增幅', () => {
+  it('共鳴水晶：每場第一次增幅 ×3，之後恢復 ×2；預覽與實際一致', () => {
+    let s = withRelics(['resonanceCrystal'], { hand: ['amp', 'pulse', 'amp', 'pulse'], energy: 10, enemies: [{ hp: 100 }] });
+    s = play(s, 'amp').state;
+    expect(previewMultiplier(s, CARDS.pulse)).toBe(3);
+    const r1 = play(s, 'pulse');
+    expect(ofType(r1.events, 'cardPlayed')[0]?.multiplier).toBe(3);
+    expect(ofType(r1.events, 'damage')[0]?.amount).toBe(18);
+    expect(relicEvents(r1.events)).toEqual(['resonanceCrystal']);
+    s = play(r1.state, 'amp').state;
+    expect(previewMultiplier(s, CARDS.pulse)).toBe(2);
+    expect(ofType(play(s, 'pulse').events, 'damage')[0]?.amount).toBe(12);
+  });
+
+  it('共鳴水晶＋連鎖增幅：第一張 ×3、第二張 ×2', () => {
+    let s = withRelics(['resonanceCrystal'], { hand: ['chainAmp', 'pulse', 'pulse'], energy: 10, enemies: [{ hp: 100 }] });
+    s = play(s, 'chainAmp').state;
+    const r1 = play(s, 'pulse');
+    const r2 = play(r1.state, 'pulse');
+    expect([ofType(r1.events, 'damage')[0]?.amount, ofType(r2.events, 'damage')[0]?.amount]).toEqual([18, 12]);
+  });
+
+  it('沒有共鳴水晶時一律 ×2；新的一場戰鬥會重置 ×3', () => {
+    const s = play(withRelics([], { hand: ['amp', 'pulse'], enemies: [{ hp: 100 }] }), 'amp').state;
+    expect(ofType(play(s, 'pulse').events, 'damage')[0]?.amount).toBe(12);
+    const again = startedWith(['resonanceCrystal'], (st) => (st.relicFlags.resonanceUsed = true));
+    expect(again.state.relicFlags.resonanceUsed).toBe(false);
+  });
+
+  it('過載線圈：每回合第一次打出增幅類的牌後抽 1 張；回合結束重置', () => {
+    const s = withRelics(['overloadCoil'], { hand: ['amp', 'chainAmp'], drawPile: ['pulse', 'field', 'herb'], energy: 5, enemies: [{ hp: 100 }] });
+    const r1 = play(s, 'amp');
+    expect(r1.state.hand.map((c) => c.cardId)).toEqual(['chainAmp', 'pulse']);
+    const r2 = play(r1.state, 'chainAmp');
+    expect(r2.state.hand.map((c) => c.cardId)).toEqual(['pulse']);
+    expect(endTurn(r2.state).state.relicFlags.coilUsed).toBe(false);
+    const without = withRelics([], { hand: ['amp', 'chainAmp'], drawPile: ['pulse'], enemies: [{ hp: 100 }] });
+    expect(play(without, 'amp').state.hand.map((c) => c.cardId)).toEqual(['chainAmp']);
+  });
+
+  it('預熱的增幅器：每場開始帶 1 次增幅', () => {
+    const ctx = startedWith(['warmAmp']);
+    expect(ctx.state.ampCharges).toBe(1);
+    expect(relicEvents(ctx.events)).toEqual(['warmAmp']);
+    expect(startedWith([]).state.ampCharges).toBe(0);
+  });
+});
+
+describe('接進戰鬥：雷翁', () => {
+  it('聖隊的誓約：背水門檻 60%', () => {
+    const at = (hp: number, relics: RelicId[]) => isBackwater(withRelics(relics, { allyHp: { leon: hp } }));
+    expect([at(30, ['sacredOath']), at(31, ['sacredOath']), at(30, []), at(25, [])]).toEqual([true, false, false, true]);
+  });
+
+  it('聖隊的誓約：只因誓約才背水時，每場提示一次', () => {
+    const s = withRelics(['sacredOath'], { allyHp: { leon: 30 }, enemies: [{ hp: 100 }] });
+    const r1 = endTurn(s);
+    expect(relicEvents(r1.events)).toEqual(['sacredOath']);
+    expect(relicEvents(endTurn(r1.state).events)).toEqual([]);
+  });
+
+  it('斷裂的盾徽：被打進背水的當下獲得 10 格擋，擋住同一次攻擊的後續傷害', () => {
+    const spec: BattleSpec = { allyHp: { leon: 26 }, enemies: [{ hp: 100, intent: { kind: 'attack', damage: 2, hits: 3, targetId: 'leon' } }] };
+    const r = endTurn(withRelics(['brokenCrest'], spec));
+    const hits = ofType(r.events, 'damage').filter((e) => e.targetId === 'leon');
+    expect(hits.map((h) => [h.amount, h.blocked])).toEqual([[2, 0], [0, 2], [0, 2]]);
+    expect(ally(r.state, 'leon').hp).toBe(24);
+    expect(relicEvents(r.events)).toEqual(['brokenCrest']);
+    expect(relicEvents(endTurn(r.state).events)).toEqual([]);
+
+    const without = endTurn(withRelics([], spec));
+    const plain = ofType(without.events, 'damage').filter((e) => e.targetId === 'leon');
+    expect(plain.map((h) => [h.amount, h.blocked])).toEqual([[2, 0], [2, 0], [2, 0]]);
+  });
+
+  it('斷裂的盾徽：開戰時已背水 → 第 1 回合開始獲得格擋；血誓進入背水也會觸發', () => {
+    const started = startedWith(['brokenCrest'], (st) => (ally(st, 'leon').hp = 20));
+    expect(ally(started.state, 'leon').block).toBe(10);
+    const oath = play(withRelics(['brokenCrest'], { hand: ['bloodOath'], allyHp: { leon: 27 } }), 'bloodOath');
+    expect(ally(oath.state, 'leon')).toMatchObject({ hp: 24, block: 10 });
+  });
+});
+
+describe('接進戰鬥：阿格妮絲', () => {
+  it('焦黑的藥草袋：卡牌施加中毒 +1（瘴氣每個敵人各 +1、腐蝕也 +1、增幅後再 +1）', () => {
+    const one = (spec: BattleSpec) => withRelics(['charredPouch'], spec);
+    expect(enemy(play(one({ hand: ['herb'], enemies: [{ hp: 50 }] }), 'herb').state).poison).toBe(5);
+    const miasma = play(one({ hand: ['miasma'], enemies: [{ hp: 50 }, { hp: 50 }] }), 'miasma').state;
+    expect(miasma.enemies.map((e) => e.poison)).toEqual([4, 4]);
+    expect(enemy(play(one({ hand: ['corrode'], enemies: [{ hp: 50, poison: 3 }] }), 'corrode').state).poison).toBe(7);
+    const amped = play(play(one({ hand: ['amp', 'herb'], enemies: [{ hp: 50 }] }), 'amp').state, 'herb').state;
+    expect(enemy(amped).poison).toBe(9);
+    expect(enemy(play(withRelics([], { hand: ['herb'], enemies: [{ hp: 50 }] }), 'herb').state).poison).toBe(4);
+  });
+
+  it('火刑柱的餘燼：擊殺帶毒敵人 → 中毒轉給存活的敵人', () => {
+    const r = play(withRelics(['pyreEmber'], { hand: ['pulse'], enemies: [{ hp: 5, poison: 3 }, { hp: 50 }] }), 'pulse', 'e0');
+    expect([enemy(r.state, 'e0').poison, enemy(r.state, 'e1').poison]).toEqual([0, 3]);
+    const plain = play(withRelics([], { hand: ['pulse'], enemies: [{ hp: 5, poison: 3 }, { hp: 50 }] }), 'pulse', 'e0');
+    expect(enemy(plain.state, 'e1').poison).toBe(0);
+  });
+
+  it('火刑柱的餘燼：被中毒打死也會轉移', () => {
+    const r = endTurn(withRelics(['pyreEmber'], { enemies: [{ hp: 2, poison: 3 }, { hp: 50 }] }));
+    expect(ofType(r.events, 'poison')).toEqual([{ type: 'poison', targetId: 'e1', amount: 2, total: 2 }]);
+  });
+
+  it('火刑柱的餘燼：野火同時打死多個 → 只轉給存活者', () => {
+    const r = play(
+      withRelics(['pyreEmber'], { hand: ['wildfire'], enemies: [{ hp: 5, poison: 1 }, { hp: 5, poison: 1 }, { hp: 50 }] }),
+      'wildfire',
+    );
+    expect(r.state.enemies.map((e) => [e.hp, e.poison])).toEqual([[0, 0], [0, 0], [40, 2]]);
+  });
+
+  it('火刑柱的餘燼：全部同時死亡 → 不轉移、直接勝利', () => {
+    const r = play(withRelics(['pyreEmber'], { hand: ['wildfire'], enemies: [{ hp: 5, poison: 1 }, { hp: 5, poison: 1 }] }), 'wildfire');
+    expect(r.state.phase).toBe('reward');
+  });
+});
+
+describe('接進戰鬥：艾斯與通用', () => {
+  it('老千的懷錶：下注失敗手氣 +2', () => {
+    const lose = rngStateWhere((v) => v >= 0.5);
+    const spec = (relics: RelicId[]) => withRelics(relics, { hand: ['allIn'], enemies: [{ hp: 50 }], patch: (st) => (st.rngState = lose) });
+    const r = play(spec(['cheatersWatch']), 'allIn');
+    expect(r.state.luck).toBe(2);
+    expect(relicEvents(r.events)).toEqual(['cheatersWatch']);
+    expect(play(spec([]), 'allIn').state.luck).toBe(1);
+  });
+
+  it('缺角的撲克牌：每場開始出千，下一次下注必定成功', () => {
+    const ctx = startedWith(['chippedCard']);
+    expect(ctx.state.rigged).toBe(true);
+    expect(nextBetChance(ctx.state)).toBe(1);
+  });
+
+  it('褪色的時刻表：第一回合抽 7 張，之後 5 張', () => {
+    const ctx = startedWith(['fadedTimetable']);
+    expect(ctx.state.hand).toHaveLength(7);
+    expect(endTurn(ctx.state).state.hand).toHaveLength(5);
+    expect(startedWith([]).state.hand).toHaveLength(5);
+  });
+
+  it('旅人的水壺：休息回復 40%（阿格妮絲 36 → ceil(14.4) = 15）', () => {
+    const healed = (relics: RelicId[]) => {
+      const ctx = { state: cloneState(withRelics(relics, { allyHp: { agnes: 10 } })), events: [] as GameEvent[] };
+      rest(ctx);
+      return ally(ctx.state, 'agnes').hp;
+    };
+    expect(healed(['travelersFlask'])).toBe(25);
+    expect(healed([])).toBe(19);
+  });
+
+  it('隕石碎片：第 3 回合能量 4，第 2 回合 3', () => {
+    const t2 = endTurn(withRelics(['meteorShard'], { enemies: [{ hp: 100 }] })).state;
+    expect(t2.energy).toBe(3);
+    const r3 = endTurn(t2);
+    expect(r3.state).toMatchObject({ turn: 3, energy: 4 });
+    expect(relicEvents(r3.events)).toEqual(['meteorShard']);
   });
 });
