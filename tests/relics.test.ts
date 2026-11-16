@@ -1,7 +1,7 @@
 // 媒介物品（追加規格 v2 第 4 節）
 
 import { describe, expect, it } from 'vitest';
-import { CARDS } from '../src/data/cards.ts';
+import { CARDS, describeCard } from '../src/data/cards.ts';
 import { ALL_RELIC_IDS, describeRelic, RELICS } from '../src/data/relics.ts';
 import { nextBetChance } from '../src/engine/bet.ts';
 import { isBackwater } from '../src/engine/combat.ts';
@@ -17,8 +17,8 @@ import {
   overloadCoilDraw,
   poisonBonus,
   restHealPercent,
+  settlePoisonTransfers,
   spendResonance,
-  transferPoisonOnDeath,
   turnStartEnergyBonus,
 } from '../src/engine/relics.ts';
 import type { GameEvent, GameState, RelicId } from '../src/engine/types.ts';
@@ -140,20 +140,22 @@ describe('效果函式', () => {
     expect(deep.events).toEqual([]);
   });
 
-  it('火刑柱的餘燼：轉給存活的敵人；沒有其他存活敵人或沒有遺物時不轉', () => {
+  it('火刑柱的餘燼：結算時把已死亡敵人的中毒轉給存活的敵人；沒有其他存活敵人或沒有遺物時不轉', () => {
     const ctx = ctxOf(withRelics(['pyreEmber'], { enemies: [{ hp: 0, poison: 4 }, { hp: 30 }] }));
-    transferPoisonOnDeath(ctx, enemy(ctx.state, 'e0'));
+    settlePoisonTransfers(ctx);
     expect(enemy(ctx.state, 'e1').poison).toBe(4);
     expect(enemy(ctx.state, 'e0').poison).toBe(0);
+    settlePoisonTransfers(ctx);
+    expect(enemy(ctx.state, 'e1').poison).toBe(4);
 
     const alone = ctxOf(withRelics(['pyreEmber'], { enemies: [{ hp: 0, poison: 4 }, { hp: 0 }] }));
     const rngBefore = alone.state.rngState;
-    transferPoisonOnDeath(alone, enemy(alone.state, 'e0'));
+    settlePoisonTransfers(alone);
     expect(alone.events).toEqual([]);
     expect(alone.state.rngState).toBe(rngBefore);
 
     const without = ctxOf(withRelics([], { enemies: [{ hp: 0, poison: 4 }, { hp: 30 }] }));
-    transferPoisonOnDeath(without, enemy(without.state, 'e0'));
+    settlePoisonTransfers(without);
     expect(enemy(without.state, 'e1').poison).toBe(0);
   });
 });
@@ -277,17 +279,29 @@ describe('接進戰鬥：阿格妮絲', () => {
     expect(ofType(r.events, 'poison')).toEqual([{ type: 'poison', targetId: 'e1', amount: 2, total: 2 }]);
   });
 
-  it('火刑柱的餘燼：野火同時打死多個 → 只轉給存活者', () => {
+  it('火刑柱的餘燼：野火同時打死多個 → 整張牌結算完才轉，只轉給存活者', () => {
     const r = play(
       withRelics(['pyreEmber'], { hand: ['wildfire'], enemies: [{ hp: 5, poison: 1 }, { hp: 5, poison: 1 }, { hp: 50 }] }),
       'wildfire',
     );
-    expect(r.state.enemies.map((e) => [e.hp, e.poison])).toEqual([[0, 0], [0, 0], [40, 2]]);
+    // e2 被打時還沒中毒（6 點，不是 10 點），結算後才收到兩份中毒
+    expect(r.state.enemies.map((e) => [e.hp, e.poison])).toEqual([[0, 0], [0, 0], [44, 2]]);
   });
 
-  it('火刑柱的餘燼：全部同時死亡 → 不轉移、直接勝利', () => {
+  it('火刑柱的餘燼：轉移不會讓同一張範圍攻擊多打（野火的中毒加成不受影響）', () => {
+    const spec: BattleSpec = { hand: ['wildfire'], enemies: [{ hp: 5, poison: 3 }, { hp: 9 }, { hp: 50 }] };
+    for (let seed = 1; seed <= 20; seed++) {
+      const r = play(withRelics(['pyreEmber'], { ...spec, seed }), 'wildfire');
+      expect(r.state.enemies.map((e) => e.hp)).toEqual([0, 3, 44]);
+      expect(enemy(r.state, 'e1').poison + enemy(r.state, 'e2').poison).toBe(3);
+    }
+  });
+
+  it('火刑柱的餘燼：全部同時死亡 → 不轉移、不提示、直接勝利', () => {
     const r = play(withRelics(['pyreEmber'], { hand: ['wildfire'], enemies: [{ hp: 5, poison: 1 }, { hp: 5, poison: 1 }] }), 'wildfire');
     expect(r.state.phase).toBe('reward');
+    expect(relicEvents(r.events)).toEqual([]);
+    expect(ofType(r.events, 'poison')).toEqual([]);
   });
 });
 
@@ -299,6 +313,12 @@ describe('接進戰鬥：艾斯與通用', () => {
     expect(r.state.luck).toBe(2);
     expect(relicEvents(r.events)).toEqual(['cheatersWatch']);
     expect(play(spec([]), 'allIn').state.luck).toBe(1);
+  });
+
+  it('老千的懷錶：孤注一擲的卡面寫出實際的手氣增加量', () => {
+    expect(describeCard('allIn', { state: withRelics(['cheatersWatch']) })).toContain('手氣 +2');
+    expect(describeCard('allIn', { state: withRelics([]) })).toContain('手氣 +1');
+    expect(describeCard('allIn')).toContain('手氣 +1');
   });
 
   it('缺角的撲克牌：每場開始出千，下一次下注必定成功', () => {

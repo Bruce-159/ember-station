@@ -4,7 +4,7 @@
 
 import { RELICS } from '../data/relics.ts';
 import { nextInt } from './rng.ts';
-import type { Ally, Ctx, Enemy, GameState, Multiplier, RelicFlags, RelicId } from './types.ts';
+import type { Ally, Ctx, GameState, Multiplier, RelicFlags, RelicId } from './types.ts';
 
 export const BASE_BACKWATER_PERCENT = 50;
 export const BASE_LUCK_ON_LOSS = 1;
@@ -112,17 +112,25 @@ export function onLeonBackwater(ctx: Ctx, leon: Ally, onlyByOath: boolean): void
   }
 }
 
-/** 敵人死亡時：火刑柱的餘燼把中毒轉給隨機一個存活的敵人（不吃藥草袋加成） */
-export function transferPoisonOnDeath(ctx: Ctx, dead: Enemy): void {
+/**
+ * 火刑柱的餘燼：把已死亡敵人身上的中毒轉給隨機一個存活的敵人（不吃藥草袋加成）。
+ * 在「一張牌結算完」與「每個敵人行動完」時呼叫，而不是敵人倒下的當下：
+ * 範圍攻擊打死第一個敵人時，其他敵人還會被同一張牌打到，提早轉移會讓它們多吃中毒加成。
+ * 轉移後把死亡敵人的中毒歸零，重複呼叫不會再轉一次。
+ */
+export function settlePoisonTransfers(ctx: Ctx): void {
   const { state } = ctx;
-  if (!hasRelic(state, 'pyreEmber') || dead.poison <= 0) return;
-  const others = state.enemies.filter((e) => e.hp > 0 && e.id !== dead.id);
-  if (others.length === 0) return;
-  const target = others[nextInt(state, others.length)];
-  if (!target) return;
-  relicTriggered(ctx, 'pyreEmber');
-  const amount = dead.poison;
-  dead.poison = 0;
-  target.poison += amount;
-  ctx.events.push({ type: 'poison', targetId: target.id, amount, total: target.poison });
+  if (!hasRelic(state, 'pyreEmber')) return;
+  for (const dead of state.enemies) {
+    if (dead.hp > 0 || dead.poison <= 0) continue;
+    const alive = state.enemies.filter((e) => e.hp > 0);
+    if (alive.length === 0) return;
+    const target = alive[nextInt(state, alive.length)];
+    if (!target) return;
+    relicTriggered(ctx, 'pyreEmber');
+    const amount = dead.poison;
+    dead.poison = 0;
+    target.poison += amount;
+    ctx.events.push({ type: 'poison', targetId: target.id, amount, total: target.poison });
+  }
 }

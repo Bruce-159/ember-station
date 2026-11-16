@@ -14,7 +14,7 @@ import {
   startPlayerTurn,
 } from './combat.ts';
 import { runEnemyAction } from './enemyAI.ts';
-import { ampMultiplier, overloadCoilDraw, spendResonance } from './relics.ts';
+import { ampMultiplier, overloadCoilDraw, settlePoisonTransfers, spendResonance } from './relics.ts';
 import { loseRun, pickRelic, pickReward, removeCardAndContinue, startRun, winBattle } from './run.ts';
 import type {
   Action,
@@ -187,6 +187,7 @@ function playCard(state: GameState, action: Extract<Action, { type: 'PLAY_CARD' 
   const enemy = def.target === 'enemy' ? (s.enemies.find((e) => e.id === targetId) ?? null) : null;
   const ally = def.target === 'ally' ? getAlly(s, targetId as AllyId) : null;
   def.play({ state: s, events: ctx.events, m, enemy, ally }, def.values);
+  settlePoisonTransfers(ctx);
   if (def.isAmp) {
     const extra = overloadCoilDraw(ctx);
     if (extra > 0) drawCards(ctx, extra);
@@ -216,6 +217,7 @@ function endTurn(ctx: Ctx): void {
   for (const enemy of state.enemies) {
     if (!isAlive(enemy)) continue;
     runEnemyAction(ctx, enemy);
+    settlePoisonTransfers(ctx);
     markFrame(ctx);
     if (allAlliesDead(state)) {
       loseRun(ctx);

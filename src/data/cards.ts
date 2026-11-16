@@ -3,6 +3,7 @@
 // 增幅倍率 m 作用在 values 的數值上；不受增幅影響的例外在各卡註明。
 
 import { resolveBet, nextBetChance } from '../engine/bet.ts';
+import { BASE_LUCK_ON_LOSS, luckOnLoss } from '../engine/relics.ts';
 import {
   addAllyBlock,
   aliveEnemies,
@@ -457,7 +458,8 @@ function ace() {
       play: (ctx, v) => {
         if (resolveBet(ctx)) damageEnemy(ctx, requireEnemy(ctx), v.damage * ctx.m, 'ace');
       },
-      describe: ({ state, m }, v) => `${betLabel(state)}：成功造成 ${v.damage * m} 點傷害；失敗則手氣 +1`,
+      describe: ({ state, m }, v) =>
+        `${betLabel(state)}：成功造成 ${v.damage * m} 點傷害；失敗則手氣 +${state ? luckOnLoss(state) : BASE_LUCK_ON_LOSS}`,
     }),
     sleeve: defineCard({
       id: 'sleeve',

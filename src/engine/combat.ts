@@ -8,7 +8,6 @@ import {
   onLeonBackwater,
   poisonBonus,
   relicTriggered,
-  transferPoisonOnDeath,
   turnStartEnergyBonus,
 } from './relics.ts';
 import { shuffle } from './rng.ts';
@@ -57,10 +56,9 @@ export function checkBackwaterRelics(ctx: Ctx): void {
   onLeonBackwater(ctx, leon, leon.hp * 100 > leon.maxHp * BASE_BACKWATER_PERCENT);
 }
 
-/** 敵人死亡：送出事件，並處理死亡時觸發的遺物 */
+/** 敵人死亡：送出事件（火刑柱的餘燼的轉移由 reducer 在結算點統一處理，見 settlePoisonTransfers） */
 function enemyDied(ctx: Ctx, enemy: Enemy): void {
   ctx.events.push({ type: 'enemyDefeated', enemyId: enemy.id });
-  transferPoisonOnDeath(ctx, enemy);
 }
 
 export function allEnemiesDead(state: GameState): boolean {
