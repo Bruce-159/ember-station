@@ -1,3 +1,4 @@
+import { RELICS } from '../../data/relics.ts';
 import { encounterAt } from '../../engine/route.ts';
 import type { GameState } from '../../engine/types.ts';
 
@@ -20,6 +21,7 @@ export function ResultScreen({ game, onRestart, onTitle }: Props) {
       <p className="sub">
         最終牌組 {game.deck.length} 張，種子 {game.seed}
       </p>
+      <p className="sub">媒介物品：{game.relics.length ? game.relics.map((id) => RELICS[id].name).join('、') : '無'}</p>
       <div className="actions">
         <button type="button" className="btn" onClick={onRestart}>
           再玩一次

@@ -18,7 +18,7 @@ export function TitleScreen({ onNew, onContinue, onRules }: Props) {
       <div className="title-actions">
         {saved && (
           <button type="button" className="btn" onClick={onContinue}>
-            繼續（第 {saved.battleIndex + 1} 戰：{encounterAt(saved)?.title}）
+            繼續（第 {saved.battleIndex + 1} 戰：{saved.phase === 'relicChoice' ? '選擇媒介物品' : encounterAt(saved)?.title}）
           </button>
         )}
         <button type="button" className={saved ? 'btn ghost' : 'btn'} onClick={onNew}>

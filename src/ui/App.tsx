@@ -4,9 +4,12 @@ import { encounterAt } from '../engine/route.ts';
 import { AllyPanel } from './components/AllyPanel.tsx';
 import { BattleLog } from './components/BattleLog.tsx';
 import { BattleScreen } from './components/BattleScreen.tsx';
+import { RelicBar } from './components/RelicBar.tsx';
+import { RelicChoiceScreen } from './components/RelicChoiceScreen.tsx';
 import { RemoveScreen } from './components/RemoveScreen.tsx';
 import { ResultScreen } from './components/ResultScreen.tsx';
 import { RewardScreen } from './components/RewardScreen.tsx';
+import { RouteBar } from './components/RouteBar.tsx';
 import { RulesDialog } from './components/RulesDialog.tsx';
 import { TitleScreen } from './components/TitleScreen.tsx';
 import { useGame } from './hooks/useGame.ts';
@@ -49,8 +52,13 @@ export default function App() {
           </button>
         </span>
       </header>
+      <div className="journey">
+        <RouteBar game={game} />
+        <RelicBar relics={game.relics} effects={g.effects} />
+      </div>
 
       <main>
+        {game.phase === 'relicChoice' && <RelicChoiceScreen game={game} keyboardEnabled={!rulesOpen} onPick={g.pickRelic} />}
         {game.phase === 'battle' && <BattleScreen g={g} keyboardEnabled={!rulesOpen} />}
         {game.phase === 'reward' && <RewardScreen game={game} onPick={g.pickReward} />}
         {game.phase === 'remove' && <RemoveScreen game={game} onRemove={g.removeCard} />}

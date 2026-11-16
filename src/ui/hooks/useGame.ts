@@ -5,7 +5,7 @@
 // 播放中（busy）鎖住所有輸入，畫面顯示的是當下影格的狀態（view），不是最終狀態。
 
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { CardId, GameState } from '../../engine/types.ts';
+import type { CardId, GameState, RelicId } from '../../engine/types.ts';
 import { actingEnemy, eventsToEffects, FLOATER_MS, frameSchedule, type Effect } from '../effects.ts';
 import { clearSave, loadSave, writeSave } from '../save.ts';
 import { initUi, uiReducer, type UiState } from '../uiState.ts';
@@ -47,6 +47,7 @@ export interface GameControls {
   clickTarget(targetId: string): void;
   cancel(): void;
   endTurn(): void;
+  pickRelic(relicId: RelicId): void;
   pickReward(cardId: CardId | null): void;
   removeCard(uid: number | null): void;
   toTitle(): void;
@@ -151,6 +152,7 @@ export function useGame(): GameControls {
       clickTarget: guarded((targetId: string) => dispatch({ type: 'clickTarget', targetId })),
       cancel: () => dispatch({ type: 'cancel' }),
       endTurn: guarded(() => dispatch({ type: 'game', action: { type: 'END_TURN' } })),
+      pickRelic: guarded((relicId: RelicId) => dispatch({ type: 'game', action: { type: 'PICK_RELIC', relicId } })),
       pickReward: guarded((cardId: CardId | null) => dispatch({ type: 'game', action: { type: 'PICK_REWARD', cardId } })),
       removeCard: guarded((uid: number | null) => dispatch({ type: 'game', action: { type: 'REMOVE_CARD', uid } })),
       toTitle: () => dispatch({ type: 'toTitle' }),

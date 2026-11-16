@@ -14,7 +14,7 @@ export function Card({ view, selected = false, hotkey, onClick }: Props) {
     `${view.cost} 點能量`,
     view.ownerName,
     view.description,
-    view.amplified ? '增幅' : '',
+    view.amplified ? (view.multiplier > 2 ? `增幅 ×${view.multiplier}` : '增幅') : '',
     view.disabledReason ?? '',
   ]
     .filter(Boolean)
@@ -39,7 +39,9 @@ export function Card({ view, selected = false, hotkey, onClick }: Props) {
         <span className="desc">{view.description}</span>
         <span className="ctype">
           {view.disabledReason ? <span className="why">{view.disabledReason}</span> : view.typeName}
-          {view.amplified && view.playable && <span className="stamp">增幅</span>}
+          {view.amplified && view.playable && (
+            <span className="stamp">{view.multiplier > 2 ? `增幅 ×${view.multiplier}` : '增幅'}</span>
+          )}
         </span>
       </span>
     </button>

@@ -723,6 +723,239 @@ header.top {
   --c: var(--ace);
 }
 
+/* ───── 路線與媒介物品 ───── */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.journey {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: -6px 0 14px;
+}
+
+.route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stops {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stop {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.stop.elite {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.stop.boss {
+  width: 14px;
+  height: 14px;
+  border-color: var(--danger);
+}
+
+.stop.done {
+  background: var(--line);
+}
+
+.stop.current {
+  border-color: var(--ember);
+  background: var(--ember);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 25%, transparent);
+}
+
+.next-stop {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.theme-amp {
+  --c: var(--lucian);
+}
+.theme-leon {
+  --c: var(--leon);
+}
+.theme-agnes {
+  --c: var(--agnes);
+}
+.theme-ace {
+  --c: var(--ace);
+}
+.theme-general {
+  --c: var(--muted);
+}
+
+.relics {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relic {
+  position: relative;
+}
+
+.relic-badge {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--c);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--c);
+  font-family: var(--serif);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.relic-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: min(260px, 80vw);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.relic-tip strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--c);
+}
+
+.relic:hover .relic-tip,
+.relic:focus-within .relic-tip,
+.relic.open .relic-tip {
+  display: block;
+}
+
+.relic.flash .relic-badge {
+  animation: relic-flash 0.9s ease-out;
+}
+
+@keyframes relic-flash {
+  0% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 0 var(--c);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+.relic-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+
+.relic-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--c);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.relic-choice:hover,
+.relic-choice:focus-visible {
+  border-color: var(--c);
+}
+
+.relic-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.relic-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--c);
+  border-radius: 50%;
+  color: var(--c);
+  font-family: var(--serif);
+  font-weight: 700;
+}
+
+.relic-name {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.relic-head kbd {
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.relic-theme {
+  color: var(--c);
+  font-size: 12px;
+}
+
+.relic-desc {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 /* ───── 選牌、移除、結果 ───── */
 
 .overlay {
@@ -1038,5 +1271,39 @@ dialog.rules ul {
 
   .floater {
     animation-name: fade-only;
+  }
+}
+
+/* ───── 路線與媒介物品：手機與減少動態效果 ───── */
+
+@media (max-width: 560px) {
+  .journey {
+    margin: -4px 0 10px;
+  }
+
+  .stops {
+    gap: 3px;
+  }
+
+  .stop {
+    width: 8px;
+    height: 8px;
+  }
+
+  .next-stop {
+    font-size: 12px;
+  }
+
+  .relic-badge {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relic.flash .relic-badge {
+    animation: none;
+    outline: 2px solid var(--c);
+    outline-offset: 2px;
   }
 }
