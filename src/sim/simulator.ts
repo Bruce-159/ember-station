@@ -3,15 +3,23 @@
 
 import { CARDS } from '../data/cards.ts';
 import { CHARACTERS } from '../data/characters.ts';
-import { STAGE_OF_SLOT, STAGES } from '../data/encounters.ts';
+import { ENCOUNTERS, STAGE_OF_SLOT, STAGES } from '../data/encounters.ts';
+import { ALL_RELIC_IDS, RELICS } from '../data/relics.ts';
 import { reduce } from '../engine/reducer.ts';
 import { mulberry32, seedToState } from '../engine/rng.ts';
 import { createInitialState } from '../engine/run.ts';
-import type { CardId, GameState } from '../engine/types.ts';
+import type { CardId, EncounterId, GameState, RelicId } from '../engine/types.ts';
 import { createGreedyBot } from './greedyBot.ts';
 
 /** 設計目標：貪婪機器人的整體勝率（非市場數據，可調整） */
 export const TARGET_WIN_RATE = { min: 0.2, max: 0.6 } as const;
+
+/** 同一段遭遇的通過率最大差距 */
+export const MAX_ENCOUNTER_SPREAD = 0.15;
+/** 開局遺物的勝率與整體勝率的最大差距 */
+export const MAX_RELIC_DELTA = 0.15;
+/** 樣本少於這個數字不參與判定 */
+export const MIN_SAMPLE = 30;
 
 /** 單場戰鬥超過這個回合數視為卡死，該局記為失敗 */
 export const MAX_TURNS_PER_BATTLE = 100;
@@ -30,6 +38,44 @@ export interface RunResult {
   turns: number[];
   picks: CardId[];
   stalled: boolean;
+  /** 這一局的路線 */
+  route: EncounterId[];
+  /** 取得的媒介物品（順序：開局、精英一、精英二） */
+  relics: RelicId[];
+}
+
+export interface EncounterStats {
+  id: EncounterId;
+  title: string;
+  /** 所屬段（STAGES 的索引） */
+  stage: number;
+  reached: number;
+  passed: number;
+  passRate: number;
+}
+
+export interface StageSpread {
+  stage: number;
+  label: string;
+  /** 例：「第 1–3 場」 */
+  slots: string;
+  /** 樣本足夠的遭遇之間，通過率最高與最低的差 */
+  spread: number;
+  ok: boolean;
+}
+
+export interface RelicStats {
+  id: RelicId;
+  name: string;
+  /** 被選到的局數（任何時候） */
+  picked: number;
+  /** 開局就選到它的局數 */
+  startRuns: number;
+  startWins: number;
+  startWinRate: number;
+  /** startWinRate − 整體勝率 */
+  delta: number;
+  ok: boolean;
 }
 
 export interface BattleStats {
@@ -61,6 +107,11 @@ export interface SimReport {
   stalled: number;
   battles: BattleStats[];
   picks: PickStats[];
+  encounters: EncounterStats[];
+  stageSpreads: StageSpread[];
+  relics: RelicStats[];
+  /** 三項平衡目標（追加規格 v2 第 6.3 節）是否全部達成 */
+  allTargetsMet: boolean;
 }
 
 /** 由基礎種子衍生每一局的種子（相鄰的基礎種子不會共用大部分的局） */
@@ -81,6 +132,7 @@ export function simulateRun(seed: number): RunResult {
   let state: GameState = reduce(createInitialState(), { type: 'NEW_RUN', seed }).state;
   const turns: number[] = [];
   const picks: CardId[] = [];
+  const relics: RelicId[] = [];
   let stalled = false;
 
   while (state.phase !== 'victory' && state.phase !== 'defeat') {
@@ -96,11 +148,21 @@ export function simulateRun(seed: number): RunResult {
     for (const e of result.events) {
       if (e.type === 'battleWon' || e.type === 'runLost') turns.push(state.turn);
       if (e.type === 'cardAdded') picks.push(e.cardId);
+      if (e.type === 'relicGained') relics.push(e.relicId);
     }
     state = result.state;
   }
 
-  return { seed, won: state.phase === 'victory', lastBattle: state.battleIndex, turns, picks, stalled };
+  return {
+    seed,
+    won: state.phase === 'victory',
+    lastBattle: state.battleIndex,
+    turns,
+    picks,
+    stalled,
+    route: [...state.route],
+    relics,
+  };
 }
 
 export function simulate(opts: SimOptions): SimReport {
@@ -111,6 +173,7 @@ export function simulate(opts: SimOptions): SimReport {
 export function summarize(opts: SimOptions, results: RunResult[]): SimReport {
   const runs = results.length;
   const wins = results.filter((r) => r.won).length;
+  const winRate = ratio(wins, runs);
 
   // 每一場的遭遇因局而異，表格依「第幾場」統計，標題用該場所屬的段名
   const battles: BattleStats[] = STAGE_OF_SLOT.map((stageIndex, index) => {
@@ -142,13 +205,36 @@ export function summarize(opts: SimOptions, results: RunResult[]): SimReport {
     // 次數相同時依卡牌 id 排序，確保輸出穩定
     .sort((a, b) => b.count - a.count || a.cardId.localeCompare(b.cardId));
 
-  const winRate = ratio(wins, runs);
+  const encounters = encounterStats(results);
+  const stageSpreads = STAGES.map((stage, si): StageSpread => {
+    const rates = encounters.filter((e) => e.stage === si && e.reached >= MIN_SAMPLE).map((e) => e.passRate);
+    const spread = rates.length < 2 ? 0 : Math.max(...rates) - Math.min(...rates);
+    return { stage: si, label: stage.label, slots: slotRange(si), spread, ok: spread <= MAX_ENCOUNTER_SPREAD };
+  });
+  const relics = ALL_RELIC_IDS.map((id): RelicStats => {
+    const starters = results.filter((r) => r.relics[0] === id);
+    const startWins = starters.filter((r) => r.won).length;
+    const startWinRate = ratio(startWins, starters.length);
+    const delta = startWinRate - winRate;
+    return {
+      id,
+      name: RELICS[id].name,
+      picked: results.filter((r) => r.relics.includes(id)).length,
+      startRuns: starters.length,
+      startWins,
+      startWinRate,
+      delta,
+      ok: starters.length < MIN_SAMPLE || Math.abs(delta) <= MAX_RELIC_DELTA,
+    };
+  });
+  const inTargetRange = winRate >= TARGET_WIN_RATE.min && winRate <= TARGET_WIN_RATE.max;
+
   return {
     runs,
     seed: opts.seed,
     wins,
     winRate,
-    inTargetRange: winRate >= TARGET_WIN_RATE.min && winRate <= TARGET_WIN_RATE.max,
+    inTargetRange,
     avgTurnsPerRun: ratio(
       results.reduce((sum, r) => sum + r.turns.reduce((a, b) => a + b, 0), 0),
       runs,
@@ -156,7 +242,39 @@ export function summarize(opts: SimOptions, results: RunResult[]): SimReport {
     stalled: results.filter((r) => r.stalled).length,
     battles,
     picks,
+    encounters,
+    stageSpreads,
+    relics,
+    allTargetsMet: inTargetRange && stageSpreads.every((s) => s.ok) && relics.every((r) => r.ok),
   };
+}
+
+function encounterStats(results: RunResult[]): EncounterStats[] {
+  const reached = new Map<EncounterId, number>();
+  const passed = new Map<EncounterId, number>();
+  const add = (m: Map<EncounterId, number>, id: EncounterId) => m.set(id, (m.get(id) ?? 0) + 1);
+  for (const r of results) {
+    for (let i = 0; i <= r.lastBattle && i < r.route.length; i++) {
+      const id = r.route[i];
+      if (id === undefined) continue;
+      add(reached, id);
+      if (i < r.lastBattle || r.won) add(passed, id);
+    }
+  }
+  return STAGES.flatMap((stage, si) =>
+    stage.pool.map((id) => {
+      const n = reached.get(id) ?? 0;
+      const p = passed.get(id) ?? 0;
+      return { id, title: ENCOUNTERS[id].title, stage: si, reached: n, passed: p, passRate: ratio(p, n) };
+    }),
+  );
+}
+
+/** 第 si 段包含的場次文字，例如「第 1–3 場」「第 4 場」 */
+function slotRange(si: number): string {
+  const first = STAGE_OF_SLOT.indexOf(si) + 1;
+  const last = STAGE_OF_SLOT.lastIndexOf(si) + 1;
+  return first === last ? `第 ${first} 場` : `第 ${first}–${last} 場`;
 }
 
 function ratio(a: number, b: number): number {
@@ -208,12 +326,32 @@ export function formatReport(r: SimReport, topPicks = 10): string {
     .slice(0, topPicks)
     .map((p, i) => [String(i + 1), p.name, p.owner, `${p.count}`, pct(p.share)]);
 
+  const signed = (n: number) => `${n >= 0 ? '+' : '−'}${(Math.abs(n) * 100).toFixed(1)}%`;
+  const encounterRows = r.encounters.map((e) => [
+    STAGES[e.stage]?.label ?? '',
+    e.title,
+    `${e.reached}`,
+    e.reached ? pct(e.passRate) : '—',
+  ]);
+  const spreadLines = r.stageSpreads.map(
+    (s) => `${s.ok ? '✓' : '⚠'} ${s.slots}（${s.label}）通過率差距 ${pct(s.spread)}${s.ok ? '' : `，超過 ${pct(MAX_ENCOUNTER_SPREAD)}`}`,
+  );
+  const relicRows = r.relics.map((x) => [
+    x.name,
+    `${x.picked}`,
+    `${x.startRuns}`,
+    x.startRuns ? pct(x.startWinRate) : '—',
+    x.startRuns ? signed(x.delta) : '—',
+    x.startRuns < MIN_SAMPLE ? '樣本不足' : x.ok ? '✓' : '⚠',
+  ]);
+
   return [
     '餘燼車站：平衡模擬報告',
     `種子 ${r.seed}，共 ${r.runs} 局，貪婪機器人`,
     '',
     `整體勝率：${pct(r.winRate)}（${r.wins} / ${r.runs}），${verdict}`,
     `平均每局回合數：${r.avgTurnsPerRun.toFixed(1)}`,
+    ...(r.allTargetsMet ? [] : ['⚠ 有平衡目標未達成（見下方標示），請開發者決定是否調整數值（模擬器不會自行修改）']),
     ...(r.stalled > 0 ? [`⚠ 有 ${r.stalled} 局因單場超過 ${MAX_TURNS_PER_BATTLE} 回合而中止，記為失敗`] : []),
     '',
     '各場戰鬥',
@@ -222,6 +360,13 @@ export function formatReport(r: SimReport, topPicks = 10): string {
       battleRows,
       ['right', 'left', 'right', 'right', 'right', 'right', 'right'],
     ),
+    '',
+    `各組遭遇（同一段的通過率差距上限 ${pct(MAX_ENCOUNTER_SPREAD)}；抵達少於 ${MIN_SAMPLE} 次不判定）`,
+    table(['段', '遭遇', '抵達', '通過率'], encounterRows, ['left', 'left', 'right', 'right']),
+    ...spreadLines,
+    '',
+    `媒介物品（勝率以開局選到的遺物計算，與整體差距上限 ±${pct(MAX_RELIC_DELTA)}）`,
+    table(['遺物', '被選', '開局選到', '勝率', '差距', '判定'], relicRows, ['left', 'right', 'right', 'right', 'right', 'left']),
     '',
     `最常被選到的卡（前 ${Math.min(topPicks, r.picks.length)} 名，機器人一律選第一張）`,
     table(['排名', '卡牌', '角色', '次數', '佔比'], pickRows, ['right', 'left', 'left', 'right', 'right']),

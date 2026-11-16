@@ -15,14 +15,24 @@ import {
   deriveSeeds,
   displayWidth,
   formatReport,
+  MAX_RELIC_DELTA,
+  MIN_SAMPLE,
   simulate,
   simulateRun,
   summarize,
   type RunResult,
 } from '../src/sim/simulator.ts';
 import { reduce } from '../src/engine/reducer.ts';
-import type { GameState } from '../src/engine/types.ts';
-import { battleState, newRun } from './helpers.ts';
+import { STAGE_OF_SLOT, STAGES } from '../src/data/encounters.ts';
+import type { EncounterId, GameState } from '../src/engine/types.ts';
+import { battleState, freshRun, newRun } from './helpers.ts';
+
+const R: EncounterId[] = ['platform', 'ticketOffice', 'benches', 'waitingRoom', 'baggageRoom', 'timetable', 'clockTower', 'overpass', 'endlessTrack', 'train'];
+const R2: EncounterId[] = ['ticketGate', ...R.slice(1)];
+
+function run(over: Partial<RunResult>): RunResult {
+  return { seed: 0, won: false, lastBattle: 0, turns: [1], picks: [], stalled: false, route: R, relics: [], ...over };
+}
 
 const cardOf = (s: GameState, uid: number | undefined) => s.hand.find((c) => c.uid === uid)?.cardId;
 
@@ -149,6 +159,11 @@ describe('貪婪機器人：規則 3 攻擊、規則 4 其他', () => {
 });
 
 describe('貪婪機器人：獎勵與移除', () => {
+  it('媒介物品一律選第一個', () => {
+    const s = freshRun(1);
+    expect(createGreedyBot().decide(s)).toEqual({ type: 'PICK_RELIC', relicId: s.relicOptions[0] });
+  });
+
   it('獎勵一律選第一張', () => {
     const s: GameState = { ...newRun(1), phase: 'reward', rewardOptions: ['wildfire', 'overload', 'soothe'] };
     expect(createGreedyBot().decide(s)).toEqual({ type: 'PICK_REWARD', cardId: 'wildfire' });
@@ -207,12 +222,18 @@ describe('模擬與報表', () => {
     const totalPicks = r.picks.reduce((sum, p) => sum + p.count, 0);
     const passedNonFinal = r.battles.slice(0, 9).reduce((sum, b) => sum + b.passed, 0);
     expect(totalPicks).toBe(passedNonFinal);
+    // 各遭遇的抵達數加總 = 該段每一場的抵達數加總
+    STAGES.forEach((_, si) => {
+      const fromEncounters = r.encounters.filter((e) => e.stage === si).reduce((n, e) => n + e.reached, 0);
+      const fromSlots = r.battles.filter((_, i) => STAGE_OF_SLOT[i] === si).reduce((n, b) => n + b.reached, 0);
+      expect(fromEncounters).toBe(fromSlots);
+    });
   });
 
   it('summarize 的比例計算', () => {
     const results: RunResult[] = [
-      { seed: 1, won: true, lastBattle: 9, turns: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], picks: ['overload'], stalled: false },
-      { seed: 2, won: false, lastBattle: 1, turns: [5, 7], picks: ['overload', 'soothe'], stalled: false },
+      run({ seed: 1, won: true, lastBattle: 9, turns: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3], picks: ['overload'], relics: ['warmAmp'] }),
+      run({ seed: 2, lastBattle: 1, turns: [5, 7], picks: ['overload', 'soothe'], relics: ['chippedCard', 'pyreEmber'] }),
     ];
     const r = summarize({ runs: 2, seed: 0 }, results);
     expect(r.winRate).toBe(0.5);
@@ -222,11 +243,41 @@ describe('模擬與報表', () => {
     expect(r.picks[0]).toMatchObject({ cardId: 'overload', count: 2 });
     expect(r.avgTurnsPerRun).toBe((30 + 12) / 2);
     expect(r.inTargetRange).toBe(true);
+    expect(r.encounters.find((e) => e.id === 'platform')).toMatchObject({ reached: 2, passed: 2, passRate: 1 });
+    expect(r.encounters.find((e) => e.id === 'ticketOffice')).toMatchObject({ reached: 2, passed: 1, passRate: 0.5 });
+    expect(r.encounters.find((e) => e.id === 'train')).toMatchObject({ reached: 1, passed: 1 });
+    expect(r.relics.find((x) => x.id === 'warmAmp')).toMatchObject({ picked: 1, startRuns: 1, startWins: 1, startWinRate: 1, delta: 0.5, ok: true });
+    expect(r.relics.find((x) => x.id === 'pyreEmber')).toMatchObject({ picked: 1, startRuns: 0 });
+  });
+
+  it('同一段的遭遇通過率差距超過 15% 時標示', () => {
+    const results = [
+      ...Array.from({ length: MIN_SAMPLE }, () => run({ won: true, lastBattle: 9, turns: Array<number>(10).fill(3) })),
+      ...Array.from({ length: MIN_SAMPLE }, () => run({ route: R2, lastBattle: 0 })),
+    ];
+    const r = summarize({ runs: results.length, seed: 0 }, results);
+    expect(r.stageSpreads[0]).toMatchObject({ label: '前段', spread: 1, ok: false });
+    expect(r.allTargetsMet).toBe(false);
+    expect(formatReport(r)).toContain('⚠ 第 1–3 場');
+  });
+
+  it('開局遺物的勝率與整體相差超過 15% 時標示；樣本不足不判定', () => {
+    const results = [
+      ...Array.from({ length: MIN_SAMPLE }, () => run({ won: true, lastBattle: 9, relics: ['warmAmp'] })),
+      ...Array.from({ length: MIN_SAMPLE }, () => run({ relics: ['chippedCard'] })),
+      run({ relics: ['pyreEmber'] }),
+    ];
+    const r = summarize({ runs: results.length, seed: 0 }, results);
+    const warm = r.relics.find((x) => x.id === 'warmAmp');
+    expect(warm?.ok).toBe(false);
+    expect(Math.abs(warm?.delta ?? 0)).toBeGreaterThan(MAX_RELIC_DELTA);
+    expect(r.relics.find((x) => x.id === 'pyreEmber')?.ok).toBe(true);
+    expect(formatReport(r)).toContain('樣本不足');
   });
 
   it('勝率超出 20%–60% 時，報表會標示交由開發者決定', () => {
     const base = summarize({ runs: 1, seed: 0 }, [
-      { seed: 1, won: false, lastBattle: 0, turns: [2], picks: [], stalled: false },
+      run({ seed: 1, turns: [2] }),
     ]);
     expect(base.inTargetRange).toBe(false);
     expect(formatReport(base)).toContain('超出設計目標');
@@ -238,6 +289,10 @@ describe('模擬與報表', () => {
     expect(text).toContain('通過率');
     expect(text).toContain('前段');
     expect(text).toContain('Boss');
+    expect(text).toContain('各組遭遇');
+    expect(text).toContain('車站外的月台');
+    expect(text).toContain('Boss：熄燈前的站務室');
+    expect(text).toContain('媒介物品');
     expect(text).toContain('最常被選到的卡');
   });
 
