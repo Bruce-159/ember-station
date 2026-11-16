@@ -5,10 +5,10 @@ import { reduce } from '../src/engine/reducer.ts';
 import { createInitialState } from '../src/engine/run.ts';
 import type { GameEvent, GameState } from '../src/engine/types.ts';
 import { eventToText } from '../src/ui/eventText.ts';
-import { deserialize, isValidState, loadSave, SAVE_KEY, serialize, writeSave, type StorageLike } from '../src/ui/save.ts';
+import { deserialize, isValidState, loadSave, SAVE_KEY, SAVE_VERSION, serialize, writeSave, type StorageLike } from '../src/ui/save.ts';
 import { initUi, keyToHandIndex, pendingTarget, uiReducer, type UiState } from '../src/ui/uiState.ts';
 import { allyTags, enemyTags, handCardView, intentView, previewCardView, restPreview, sortedDeck } from '../src/ui/view.ts';
-import { ally, autoplayRun, battleState, enemy, newRun, play } from './helpers.ts';
+import { ally, autoplayRun, battleState, enemy, freshRun, newRun, play } from './helpers.ts';
 
 function memoryStorage(): StorageLike & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -160,10 +160,37 @@ describe('存檔', () => {
     expect(deserialize(null)).toBeNull();
     expect(deserialize('{壞掉的 json')).toBeNull();
     expect(deserialize(JSON.stringify({ version: 999, state: newRun(1) }))).toBeNull();
-    expect(deserialize(JSON.stringify({ version: 1, state: { ...newRun(1), allies: [] } }))).toBeNull();
-    expect(deserialize(JSON.stringify({ version: 1, state: { ...newRun(1), hand: [{ uid: 1, cardId: 'notACard' }] } }))).toBeNull();
-    expect(deserialize(JSON.stringify({ version: 1, state: { ...newRun(1), battleIndex: 10 } }))).toBeNull();
+    expect(deserialize(JSON.stringify({ version: SAVE_VERSION, state: { ...newRun(1), allies: [] } }))).toBeNull();
+    expect(deserialize(JSON.stringify({ version: SAVE_VERSION, state: { ...newRun(1), hand: [{ uid: 1, cardId: 'notACard' }] } }))).toBeNull();
+    expect(deserialize(JSON.stringify({ version: SAVE_VERSION, state: { ...newRun(1), battleIndex: 10 } }))).toBeNull();
     expect(isValidState({ ...newRun(1), phase: 'title' })).toBe(false);
+  });
+
+  it('開局選媒介物品時（還沒有敵人）也能存檔，讀回後可以繼續', () => {
+    const s = freshRun(4);
+    const restored = deserialize(serialize(s));
+    expect(restored).toEqual(s);
+    if (!restored) throw new Error('應該讀得回來');
+    const pick = { type: 'PICK_RELIC', relicId: s.relicOptions[0]! } as const;
+    expect(reduce(restored, pick).state).toEqual(reduce(s, pick).state);
+  });
+
+  it('第 1 版存檔不接續', () => {
+    expect(deserialize(JSON.stringify({ version: 1, state: newRun(1) }))).toBeNull();
+  });
+
+  it('路線、遺物、旗標或選項不合法時回傳 null', () => {
+    const bad = (patch: Record<string, unknown>, base: GameState = newRun(1)) =>
+      deserialize(JSON.stringify({ version: SAVE_VERSION, state: { ...base, ...patch } }));
+    expect(bad({})).not.toBeNull();
+    expect(bad({ route: ['platform'] })).toBeNull();
+    expect(bad({ route: [...newRun(1).route.slice(0, 9), 'nowhere'] })).toBeNull();
+    expect(bad({ relics: ['notARelic'] })).toBeNull();
+    expect(bad({ relics: ['warmAmp', 'warmAmp'] })).toBeNull();
+    expect(bad({ relicFlags: { resonanceUsed: false } })).toBeNull();
+    expect(bad({ afterRelic: 'shop' })).toBeNull();
+    expect(bad({ enemies: [] })).toBeNull();
+    expect(bad({ relicOptions: [] }, freshRun(1))).toBeNull();
   });
 
   it('進行中寫入存檔；勝利或失敗時清除', () => {

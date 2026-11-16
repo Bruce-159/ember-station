@@ -3,10 +3,12 @@
 
 import { CARDS } from '../data/cards.ts';
 import { ENCOUNTERS, ROUTE_LENGTH } from '../data/encounters.ts';
+import { RELICS } from '../data/relics.ts';
 import type { CardInstance, GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'ember-station:run';
-export const SAVE_VERSION = 1;
+/** 第 2 版：加入路線與媒介物品。第 1 版存檔不接續 */
+export const SAVE_VERSION = 2;
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -24,7 +26,11 @@ export function browserStorage(): StorageLike | null {
   }
 }
 
-const SAVABLE: ReadonlySet<GameState['phase']> = new Set(['battle', 'reward', 'remove']);
+const SAVABLE: ReadonlySet<GameState['phase']> = new Set(['relicChoice', 'battle', 'reward', 'remove']);
+
+const FLAG_KEYS = ['resonanceUsed', 'coilUsed', 'crestUsed', 'oathShown'] as const;
+
+const isRelicId = (id: unknown): boolean => typeof id === 'string' && id in RELICS;
 
 export function serialize(state: GameState): string {
   return JSON.stringify({ version: SAVE_VERSION, state });
@@ -97,6 +103,12 @@ export function isValidState(v: unknown): v is GameState {
   if (!['rigged', 'sleeveUsed', 'firstBetDone'].every((k) => typeof v[k] === 'boolean')) return false;
   if (!isRecord(v.powers)) return false;
   if (!Array.isArray(v.rewardOptions) || !v.rewardOptions.every((id) => typeof id === 'string' && id in CARDS)) return false;
+  if (!Array.isArray(v.relics) || !v.relics.every(isRelicId) || new Set(v.relics).size !== v.relics.length) return false;
+  if (!Array.isArray(v.relicOptions) || !v.relicOptions.every(isRelicId)) return false;
+  if (v.phase === 'relicChoice' && v.relicOptions.length === 0) return false;
+  const flags = v.relicFlags;
+  if (!isRecord(flags) || !FLAG_KEYS.every((k) => typeof flags[k] === 'boolean')) return false;
+  if (!(v.afterRelic === null || v.afterRelic === 'battle' || v.afterRelic === 'reward')) return false;
 
   const allies = v.allies;
   if (!Array.isArray(allies) || allies.length !== 3) return false;
@@ -105,7 +117,9 @@ export function isValidState(v: unknown): v is GameState {
   }
 
   const enemies = v.enemies;
-  if (!Array.isArray(enemies) || enemies.length === 0) return false;
+  if (!Array.isArray(enemies)) return false;
+  // 開局選遺物時還沒有敵人
+  if (enemies.length === 0) return v.phase === 'relicChoice';
   return enemies.every(
     (e) => isRecord(e) && typeof e.id === 'string' && isInt(e.hp) && Array.isArray(e.pattern) && e.pattern.length > 0,
   );
