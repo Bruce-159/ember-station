@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BATTLES } from '../../data/battles.ts';
+import { encounterAt } from '../../engine/route.ts';
 import { loadSave } from '../save.ts';
 
 interface Props {
@@ -18,7 +18,7 @@ export function TitleScreen({ onNew, onContinue, onRules }: Props) {
       <div className="title-actions">
         {saved && (
           <button type="button" className="btn" onClick={onContinue}>
-            繼續（第 {saved.battleIndex + 1} 戰：{BATTLES[saved.battleIndex]?.title}）
+            繼續（第 {saved.battleIndex + 1} 戰：{encounterAt(saved)?.title}）
           </button>
         )}
         <button type="button" className={saved ? 'btn ghost' : 'btn'} onClick={onNew}>

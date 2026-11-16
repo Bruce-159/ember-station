@@ -1,9 +1,9 @@
 // 平衡模擬：用貪婪機器人跑完整的一輪，統計勝率與各關通過率。
 // 純函式、可重現：同一個 seed 與 runs 一定產生相同的報告。
 
-import { BATTLES } from '../data/battles.ts';
 import { CARDS } from '../data/cards.ts';
 import { CHARACTERS } from '../data/characters.ts';
+import { STAGE_OF_SLOT, STAGES } from '../data/encounters.ts';
 import { reduce } from '../engine/reducer.ts';
 import { mulberry32, seedToState } from '../engine/rng.ts';
 import { createInitialState } from '../engine/run.ts';
@@ -112,13 +112,14 @@ export function summarize(opts: SimOptions, results: RunResult[]): SimReport {
   const runs = results.length;
   const wins = results.filter((r) => r.won).length;
 
-  const battles: BattleStats[] = BATTLES.map((b, index) => {
+  // 每一場的遭遇因局而異，表格依「第幾場」統計，標題用該場所屬的段名
+  const battles: BattleStats[] = STAGE_OF_SLOT.map((stageIndex, index) => {
     const reachedRuns = results.filter((r) => r.lastBattle >= index);
     const passed = results.filter((r) => r.lastBattle > index || (r.lastBattle === index && r.won)).length;
     const turnSum = reachedRuns.reduce((sum, r) => sum + (r.turns[index] ?? 0), 0);
     return {
       index,
-      title: b.title,
+      title: STAGES[stageIndex]?.label ?? '',
       reached: reachedRuns.length,
       passed,
       reachRate: ratio(reachedRuns.length, runs),

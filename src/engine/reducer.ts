@@ -34,6 +34,7 @@ import type {
 export function cloneState(s: GameState): GameState {
   return {
     ...s,
+    route: s.route.slice(),
     allies: s.allies.map((a) => ({ ...a })),
     enemies: s.enemies.map((e) => ({ ...e, intent: e.intent ? { ...e.intent } : null })),
     deck: s.deck.slice(),

@@ -102,6 +102,7 @@ export function eventToText(e: GameEvent, state: GameState): LogText | null {
       return { text: '十場戰鬥全部勝利！', kind: 'heading' };
     case 'runLost':
       return { text: `隊伍全滅，止步於第 ${e.battleIndex + 1} 戰`, kind: 'heading' };
+    case 'routeBuilt':
     case 'enemyTurn':
     case 'draw':
     case 'discardHand':

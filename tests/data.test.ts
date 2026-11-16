@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BATTLES } from '../src/data/battles.ts';
+import { ALL_ENCOUNTER_IDS, ENCOUNTERS, ROUTE_LENGTH, STAGE_OF_SLOT, STAGES } from '../src/data/encounters.ts';
 import { ALL_CARD_IDS, CARDS, REWARD_POOL, describeCard } from '../src/data/cards.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { STARTER_DECK } from '../src/data/starterDeck.ts';
-import type { CardId, CardType, CharacterId, IntentPattern, TargetKind } from '../src/engine/types.ts';
+import type { CardId, CardType, CharacterId, EncounterId, IntentPattern, TargetKind } from '../src/engine/types.ts';
 
 describe('角色資料', () => {
   it('生命值符合規格', () => {
@@ -105,46 +105,95 @@ describe('起始牌組', () => {
   });
 });
 
-describe('關卡資料', () => {
-  it('共 10 場，標題與敵人生命符合規格', () => {
-    expect(BATTLES).toHaveLength(10);
-    const summary = BATTLES.map((b) => [b.title, b.enemies.map((e) => e.hp)]);
-    expect(summary).toEqual([
-      ['車站外的月台', [24, 20]],
-      ['售票口', [34, 22]],
-      ['長椅區', [18, 18, 18]],
-      ['精英：凝固的候車室', [72]],
-      ['行李房', [50, 26]],
-      ['時刻表前', [36, 36]],
-      ['精英：停擺的鐘塔', [95]],
-      ['天橋', [60, 30]],
-      ['無盡的軌道', [34, 34, 34]],
-      ['Boss：永不出發的列車', [160]],
-    ]);
+describe('遭遇資料', () => {
+  const notation = (p: IntentPattern): string => {
+    if (p.kind === 'attack') return p.hits === 1 ? `A(${p.damage})` : `A(${p.damage},${p.hits})`;
+    if (p.kind === 'aoe') return `AOE(${p.damage})`;
+    return p.strength === 0 ? `DEF(${p.block})` : `DEF(${p.block},${p.strength})`;
+  };
+  const summary = (ids: EncounterId[]) =>
+    Object.fromEntries(
+      ids.map((id) => [id, [ENCOUNTERS[id].title, ENCOUNTERS[id].enemies.map((e) => `${e.hp}:${e.pattern.map(notation).join(' ')}`)]]),
+    );
+
+  it('共 19 組，id 與鍵一致', () => {
+    expect(ALL_ENCOUNTER_IDS).toHaveLength(19);
+    for (const id of ALL_ENCOUNTER_IDS) expect(ENCOUNTERS[id].id).toBe(id);
   });
 
-  it('所有敵人的行動模式符合規格（第 7–10 場攻擊傷害已依平衡決定 −3）', () => {
-    const notation = (p: IntentPattern): string => {
-      if (p.kind === 'attack') return p.hits === 1 ? `A(${p.damage})` : `A(${p.damage},${p.hits})`;
-      if (p.kind === 'aoe') return `AOE(${p.damage})`;
-      return p.strength === 0 ? `DEF(${p.block})` : `DEF(${p.block},${p.strength})`;
-    };
-    expect(BATTLES.map((b) => b.enemies.map((e) => e.pattern.map(notation).join(' ')))).toEqual([
-      ['A(6) A(4,2) A(7)', 'A(5) DEF(6) A(8)'],
-      ['A(8) DEF(8) A(10)', 'A(5) DEF(6) A(9)'],
-      ['A(5) A(3,2)', 'A(3,2) A(5)', 'A(6) DEF(5)'],
-      ['A(11) AOE(6) DEF(12,2) A(15)'],
-      ['DEF(10) A(14) A(6,2)', 'A(7) A(4,2) A(8)'],
-      ['A(9) AOE(5) A(7,2)', 'AOE(5) A(7,2) A(9)'],
-      // 以下為平衡調整後的數值（原值各 +3）
-      ['DEF(14,2) A(7,2) AOE(5) A(15)'],
-      ['A(13) A(2,3) DEF(12)', 'A(6) DEF(8) A(8)'],
-      ['A(5) AOE(2) A(8)', 'AOE(2) A(8) A(5)', 'A(8) A(5) AOE(2)'],
-      ['A(9) AOE(5) DEF(18,3) A(6,2) A(19)'],
-    ]);
+  it('沿用的 10 組與第一版數值相同（精英二、後段、Boss 已含攻擊 −3）', () => {
+    expect(
+      summary(['platform', 'ticketOffice', 'benches', 'waitingRoom', 'baggageRoom', 'timetable', 'clockTower', 'overpass', 'endlessTrack', 'train']),
+    ).toEqual({
+      platform: ['車站外的月台', ['24:A(6) A(4,2) A(7)', '20:A(5) DEF(6) A(8)']],
+      ticketOffice: ['售票口', ['34:A(8) DEF(8) A(10)', '22:A(5) DEF(6) A(9)']],
+      benches: ['長椅區', ['18:A(5) A(3,2)', '18:A(3,2) A(5)', '18:A(6) DEF(5)']],
+      waitingRoom: ['精英：凝固的候車室', ['72:A(11) AOE(6) DEF(12,2) A(15)']],
+      baggageRoom: ['行李房', ['50:DEF(10) A(14) A(6,2)', '26:A(7) A(4,2) A(8)']],
+      timetable: ['時刻表前', ['36:A(9) AOE(5) A(7,2)', '36:AOE(5) A(7,2) A(9)']],
+      clockTower: ['精英：停擺的鐘塔', ['95:DEF(14,2) A(7,2) AOE(5) A(15)']],
+      overpass: ['天橋', ['60:A(13) A(2,3) DEF(12)', '30:A(6) DEF(8) A(8)']],
+      endlessTrack: ['無盡的軌道', ['34:A(5) AOE(2) A(8)', '34:AOE(2) A(8) A(5)', '34:A(8) A(5) AOE(2)']],
+      train: ['Boss：永不出發的列車', ['160:A(9) AOE(5) DEF(18,3) A(6,2) A(19)']],
+    });
   });
 
-  it('每個敵人都有至少一個行動', () => {
-    for (const b of BATTLES) for (const e of b.enemies) expect(e.pattern.length).toBeGreaterThan(0);
+  it('新增的 9 組符合追加規格第 3.3 節', () => {
+    expect(
+      summary(['ticketGate', 'lostAndFound', 'lostStorage', 'platformTwo', 'queue', 'signalRoom', 'platformEnd', 'lastCarriage', 'stationOffice']),
+    ).toEqual({
+      ticketGate: ['剪票口', ['21:A(4,2) DEF(5) A(7)', '21:DEF(5) A(7) A(4,2)']],
+      lostAndFound: ['失物招領櫃台', ['30:A(7) DEF(7) A(9)', '18:A(5) A(3,2)']],
+      lostStorage: ['精英：遺失物倉庫', ['66:DEF(10,1) A(5,2) AOE(7) A(13)']],
+      platformTwo: ['第二月台', ['40:A(6,2) DEF(9,1) A(11)', '26:A(6) DEF(7) A(9)']],
+      queue: ['擁擠的候車線', ['22:A(6) A(4,2)', '22:A(4,2) A(6)', '22:A(7) DEF(6)']],
+      signalRoom: ['精英：信號機房', ['58:AOE(4) A(10) DEF(10,1) A(5,2)', '26:A(5) DEF(7) A(7)']],
+      platformEnd: ['月台盡頭', ['56:DEF(10) A(11) A(4,2)', '32:A(6) AOE(3) A(5,2)']],
+      lastCarriage: ['末班車的車廂', ['40:A(9) DEF(10,1) AOE(3)', '40:DEF(10,1) AOE(3) A(9)']],
+      stationOffice: ['Boss：熄燈前的站務室', ['150:AOE(4) A(8,2) DEF(15,2) A(12) AOE(7)']],
+    });
+  });
+
+  it('6 段共 10 場；每組遭遇恰好屬於一段', () => {
+    expect(STAGES.map((s) => [s.label, s.pool.length, s.count])).toEqual([
+      ['前段', 5, 3],
+      ['精英', 2, 1],
+      ['中段', 4, 2],
+      ['精英', 2, 1],
+      ['後段', 4, 2],
+      ['Boss', 2, 1],
+    ]);
+    expect(ROUTE_LENGTH).toBe(10);
+    expect(STAGE_OF_SLOT).toEqual([0, 0, 0, 1, 2, 2, 3, 4, 4, 5]);
+    const all = STAGES.flatMap((s) => s.pool);
+    expect([...all].sort()).toEqual([...ALL_ENCOUNTER_IDS].sort());
+  });
+
+  it('難度：前段 1／2／3／1／3，中段 1／2／2／1，後段 1／2／1／2', () => {
+    const d = (ids: EncounterId[]) => ids.map((id) => ENCOUNTERS[id].difficulty);
+    expect(d(['platform', 'ticketOffice', 'benches', 'ticketGate', 'lostAndFound'])).toEqual([1, 2, 3, 1, 3]);
+    expect(d(['baggageRoom', 'timetable', 'platformTwo', 'queue'])).toEqual([1, 2, 2, 1]);
+    expect(d(['overpass', 'endlessTrack', 'platformEnd', 'lastCarriage'])).toEqual([1, 2, 1, 2]);
+  });
+
+  it('精英段只有精英、Boss 段只有 Boss，其他段兩者皆非', () => {
+    STAGES.forEach((stage, i) => {
+      for (const id of stage.pool) {
+        const e = ENCOUNTERS[id];
+        expect([!!e.elite, !!e.boss]).toEqual([i === 1 || i === 3, i === 5]);
+      }
+    });
+  });
+
+  it('每個敵人生命 > 0、至少一個行動；一場最多 3 個敵人', () => {
+    for (const id of ALL_ENCOUNTER_IDS) {
+      const e = ENCOUNTERS[id];
+      expect(e.enemies.length).toBeGreaterThan(0);
+      expect(e.enemies.length).toBeLessThanOrEqual(3);
+      for (const enemy of e.enemies) {
+        expect(enemy.hp).toBeGreaterThan(0);
+        expect(enemy.pattern.length).toBeGreaterThan(0);
+      }
+    }
   });
 });

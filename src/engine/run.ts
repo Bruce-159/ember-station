@@ -1,12 +1,13 @@
 // 一輪的流程：開始、戰鬥開始、勝利、獎勵、移除、休息（第 3.6 節）
 
 import { ALLY_ORDER, allyMaxHp } from '../data/characters.ts';
-import { BATTLES } from '../data/battles.ts';
 import { REWARD_POOL } from '../data/cards.ts';
+import { ENCOUNTERS, ROUTE_LENGTH } from '../data/encounters.ts';
 import { STARTER_DECK } from '../data/starterDeck.ts';
 import { startPlayerTurn } from './combat.ts';
 import { chooseIntent } from './enemyAI.ts';
 import { seedToState, shuffle } from './rng.ts';
+import { buildRoute } from './route.ts';
 import type { CardId, CardInstance, Ctx, GameState } from './types.ts';
 
 export const REWARD_CHOICES = 3;
@@ -21,6 +22,7 @@ export function createInitialState(): GameState {
     rngState: seedToState(0),
     nextUid: 1,
     battleIndex: 0,
+    route: [],
     turn: 0,
     energy: 0,
     allies: [],
@@ -59,14 +61,17 @@ export function startRun(ctx: Ctx, seed: number): void {
   });
   state.deck = STARTER_DECK.map((id) => makeCard(state, id));
   ctx.events.push({ type: 'runStarted', seed });
+  state.route = buildRoute(state);
+  ctx.events.push({ type: 'routeBuilt', route: [...state.route] });
   startBattle(ctx, 0);
 }
 
 /** 戰鬥開始：洗牌、清空牌堆、重置能力／手氣／增幅／出千，決定意圖後進入第一個玩家回合 */
 export function startBattle(ctx: Ctx, battleIndex: number): void {
   const { state } = ctx;
-  const def = BATTLES[battleIndex];
-  if (!def) throw new Error(`沒有第 ${battleIndex + 1} 場戰鬥`);
+  const encounterId = state.route[battleIndex];
+  if (encounterId === undefined) throw new Error(`沒有第 ${battleIndex + 1} 場戰鬥`);
+  const def = ENCOUNTERS[encounterId];
   state.phase = 'battle';
   state.battleIndex = battleIndex;
   state.turn = 0;
@@ -97,13 +102,13 @@ export function startBattle(ctx: Ctx, battleIndex: number): void {
     a.block = 0;
     a.thorns = 0;
   }
-  ctx.events.push({ type: 'battleStarted', battleIndex, title: def.title });
+  ctx.events.push({ type: 'battleStarted', battleIndex, encounterId, title: def.title });
   for (const e of state.enemies) chooseIntent(ctx, e);
   startPlayerTurn(ctx);
 }
 
 export function isFinalBattle(battleIndex: number): boolean {
-  return battleIndex >= BATTLES.length - 1;
+  return battleIndex >= ROUTE_LENGTH - 1;
 }
 
 /** 戰鬥勝利：最後一場 → 本輪勝利；否則進入選牌 */

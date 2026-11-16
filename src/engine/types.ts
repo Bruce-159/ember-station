@@ -43,6 +43,33 @@ export type CardId =
   | 'notForYou'
   | 'coverFire';
 
+export type EncounterId =
+  // 前段
+  | 'platform'
+  | 'ticketOffice'
+  | 'benches'
+  | 'ticketGate'
+  | 'lostAndFound'
+  // 精英一
+  | 'waitingRoom'
+  | 'lostStorage'
+  // 中段
+  | 'baggageRoom'
+  | 'timetable'
+  | 'platformTwo'
+  | 'queue'
+  // 精英二
+  | 'clockTower'
+  | 'signalRoom'
+  // 後段
+  | 'overpass'
+  | 'endlessTrack'
+  | 'platformEnd'
+  | 'lastCarriage'
+  // Boss
+  | 'train'
+  | 'stationOffice';
+
 export type CardType = 'attack' | 'skill' | 'power';
 export type TargetKind = 'enemy' | 'ally' | 'none';
 /** 增幅倍率 */
@@ -151,6 +178,8 @@ export interface GameState {
 
   /** 目前第幾場戰鬥（0 起算） */
   battleIndex: number;
+  /** 這一輪的 10 場遭遇（開局時產生，battleIndex 是它的索引） */
+  route: EncounterId[];
   turn: number;
   energy: number;
 
@@ -194,7 +223,8 @@ export type RejectReason = UnplayableReason | 'invalidTarget' | 'invalidChoice';
 
 export type GameEvent =
   | { type: 'runStarted'; seed: number }
-  | { type: 'battleStarted'; battleIndex: number; title: string }
+  | { type: 'routeBuilt'; route: EncounterId[] }
+  | { type: 'battleStarted'; battleIndex: number; encounterId: EncounterId; title: string }
   | { type: 'turnStarted'; turn: number }
   | { type: 'shuffle'; count: number }
   | { type: 'draw'; uids: number[] }

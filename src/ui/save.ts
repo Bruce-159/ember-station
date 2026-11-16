@@ -1,8 +1,8 @@
 // 用 localStorage 保存目前這一輪（第 12 節）。
 // 讀取失敗（不存在、格式錯誤、版本不符）一律回傳 null，由呼叫端開新的一輪。
 
-import { BATTLES } from '../data/battles.ts';
 import { CARDS } from '../data/cards.ts';
+import { ENCOUNTERS, ROUTE_LENGTH } from '../data/encounters.ts';
 import type { CardInstance, GameState } from '../engine/types.ts';
 
 export const SAVE_KEY = 'ember-station:run';
@@ -91,7 +91,8 @@ export function isValidState(v: unknown): v is GameState {
   if (typeof v.phase !== 'string' || !SAVABLE.has(v.phase as GameState['phase'])) return false;
   const ints = ['seed', 'rngState', 'nextUid', 'battleIndex', 'turn', 'energy', 'ampCharges', 'luck'];
   if (!ints.every((k) => isInt(v[k]))) return false;
-  if (!isInt(v.battleIndex) || v.battleIndex < 0 || v.battleIndex >= BATTLES.length) return false;
+  if (!isInt(v.battleIndex) || v.battleIndex < 0 || v.battleIndex >= ROUTE_LENGTH) return false;
+  if (!Array.isArray(v.route) || v.route.length !== ROUTE_LENGTH || !v.route.every((id) => typeof id === 'string' && id in ENCOUNTERS)) return false;
   if (!['deck', 'drawPile', 'hand', 'discard', 'exhausted'].every((k) => isCardList(v[k]))) return false;
   if (!['rigged', 'sleeveUsed', 'firstBetDone'].every((k) => typeof v[k] === 'boolean')) return false;
   if (!isRecord(v.powers)) return false;

@@ -1,8 +1,8 @@
 // 一輪的流程、重現性、純函式
 
 import { describe, expect, it } from 'vitest';
-import { BATTLES } from '../src/data/battles.ts';
 import { REWARD_POOL } from '../src/data/cards.ts';
+import { ENCOUNTERS, ROUTE_LENGTH } from '../src/data/encounters.ts';
 import { cloneState, reduce } from '../src/engine/reducer.ts';
 import { createInitialState } from '../src/engine/run.ts';
 import type { Action, CardId, GameState } from '../src/engine/types.ts';
@@ -34,8 +34,10 @@ describe('新的一輪', () => {
       ['ace', 40, 40],
     ]);
     expect(s.phase).toBe('battle');
-    expect(s.enemies.map((e) => e.name)).toEqual(['徘徊的執念', '低語的殘影']);
-    expect(ofType(r.events, 'battleStarted')[0]).toMatchObject({ battleIndex: 0, title: '車站外的月台' });
+    const first = ENCOUNTERS[s.route[0]!];
+    expect(s.enemies.map((e) => e.name)).toEqual(first.enemies.map((e) => e.name));
+    expect(ofType(r.events, 'routeBuilt')[0]?.route).toEqual(s.route);
+    expect(ofType(r.events, 'battleStarted')[0]).toMatchObject({ battleIndex: 0, encounterId: s.route[0], title: first.title });
     expect(ofType(r.events, 'intentChosen')).toHaveLength(2);
   });
 
@@ -130,13 +132,13 @@ describe('一輪的終點', () => {
   it('依序打完 10 場 → 本輪勝利（第 10 場後沒有選牌）', () => {
     let s = newRun(11);
     const titles: string[] = [];
-    for (let i = 0; i < BATTLES.length; i++) {
+    for (let i = 0; i < ROUTE_LENGTH; i++) {
       expect(s.battleIndex).toBe(i);
-      titles.push(BATTLES[s.battleIndex]?.title ?? '');
+      titles.push(ENCOUNTERS[s.route[s.battleIndex]!].title);
       const r = reduce(s, { type: 'END_TURN' }); // 確認一般回合不會出錯
       s = r.state.phase === 'battle' ? r.state : s;
       s = winCurrentBattle(s);
-      if (i < BATTLES.length - 1) {
+      if (i < ROUTE_LENGTH - 1) {
         expect(s.phase).toBe('reward');
         s = reduce(s, { type: 'PICK_REWARD', cardId: s.rewardOptions[0] ?? null }).state;
         s = reduce(s, { type: 'REMOVE_CARD', uid: null }).state;
@@ -145,7 +147,7 @@ describe('一輪的終點', () => {
     expect(s.phase).toBe('victory');
     expect(s.rewardOptions).toEqual([]);
     expect(s.deck).toHaveLength(17 + 9);
-    expect(titles).toEqual(BATTLES.map((b) => b.title));
+    expect(titles).toEqual(s.route.map((id) => ENCOUNTERS[id].title));
   });
 
   it('勝利或失敗後，除了 NEW_RUN 以外的動作都會被拒絕', () => {

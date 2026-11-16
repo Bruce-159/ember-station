@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { BATTLES } from '../data/battles.ts';
+import { ROUTE_LENGTH } from '../data/encounters.ts';
+import { encounterAt } from '../engine/route.ts';
 import { AllyPanel } from './components/AllyPanel.tsx';
 import { BattleLog } from './components/BattleLog.tsx';
 import { BattleScreen } from './components/BattleScreen.tsx';
@@ -28,13 +29,13 @@ export default function App() {
     );
   }
 
-  const battle = BATTLES[game.battleIndex];
+  const battle = encounterAt(game);
   return (
     <div className="wrap">
       <header className="top">
         <div className="station">
           <span className="stop-no">
-            第 {game.battleIndex + 1} 戰<span className="of">／共 {BATTLES.length} 戰</span>
+            第 {game.battleIndex + 1} 戰<span className="of">／共 {ROUTE_LENGTH} 戰</span>
           </span>
           <h1 className="stop-name">{battle?.title}</h1>
         </div>

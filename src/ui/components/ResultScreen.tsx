@@ -1,4 +1,4 @@
-import { BATTLES } from '../../data/battles.ts';
+import { encounterAt } from '../../engine/route.ts';
 import type { GameState } from '../../engine/types.ts';
 
 interface Props {
@@ -15,7 +15,7 @@ export function ResultScreen({ game, onRestart, onTitle }: Props) {
       <p className="sub">
         {won
           ? '隊伍撐過了車站裡的十場戰鬥。可以再玩一次，試試不同的牌組路線。'
-          : `在第 ${game.battleIndex + 1} 戰「${BATTLES[game.battleIndex]?.title ?? ''}」倒下，所有人的餘燼都回到了錨點。`}
+          : `在第 ${game.battleIndex + 1} 戰「${encounterAt(game)?.title ?? ''}」倒下，所有人的餘燼都回到了錨點。`}
       </p>
       <p className="sub">
         最終牌組 {game.deck.length} 張，種子 {game.seed}

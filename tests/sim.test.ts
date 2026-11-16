@@ -236,8 +236,8 @@ describe('模擬與報表', () => {
     const text = formatReport(simulate({ runs: 20, seed: 1 }));
     expect(text).toContain('整體勝率');
     expect(text).toContain('通過率');
-    expect(text).toContain('車站外的月台');
-    expect(text).toContain('Boss：永不出發的列車');
+    expect(text).toContain('前段');
+    expect(text).toContain('Boss');
     expect(text).toContain('最常被選到的卡');
   });
 
